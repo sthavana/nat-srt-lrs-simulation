@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SRT Protocol — Interactive Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; display: flex; align-items: center; gap: 20px; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+
+  /* Tab Navigation */
+  .tabs { display: flex; gap: 4px; background: #111620; padding: 8px 30px; border-bottom: 1px solid #2a3040; }
+  .tab { padding: 10px 24px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; color: #6b7b8d; border: 1px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: #a0b0c0; background: #161d2a; }
+  .tab.active { color: #4ecdc4; background: #161d2a; border-color: #2a3040; border-bottom-color: #161d2a; }
+
+  /* Main Layout */
+  .sim-container { display: none; padding: 24px 30px; }
+  .sim-container.active { display: block; }
+
+  /* Controls Panel */
+  .controls { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 24px; padding: 20px; background: #111620; border-radius: 12px; border: 1px solid #1e2738; }
+  .control-group { flex: 1; min-width: 200px; }
+  .control-group label { display: block; font-size: 12px; color: #6b7b8d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .control-group .value { font-size: 20px; font-weight: 700; color: #4ecdc4; margin-bottom: 6px; }
+  .control-group input[type="range"] { width: 100%; -webkit-appearance: none; height: 6px; border-radius: 3px; background: #1e2738; outline: none; }
+  .control-group input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #4ecdc4; cursor: pointer; border: 2px solid #0a0e17; }
+
+  /* Canvas Area */
+  .canvas-wrapper { background: #0d1117; border-radius: 12px; border: 1px solid #1e2738; overflow: hidden; margin-bottom: 20px; }
+  canvas { display: block; width: 100%; }
+
+  /* Stats Bar */
+  .stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 140px; background: #111620; border-radius: 10px; padding: 16px; border: 1px solid #1e2738; }
+  .stat-card .stat-label { font-size: 11px; color: #6b7b8d; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .stat-good { color: #4ecdc4; }
+  .stat-warn { color: #f9ca24; }
+  .stat-bad { color: #ff6b6b; }
+
+  /* Buttons */
+  .btn-group { display: flex; gap: 8px; align-items: center; }
+  .btn { padding: 10px 24px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: #4ecdc4; color: #0a0e17; }
+  .btn-primary:hover { background: #3dbdb5; }
+  .btn-secondary { background: #1e2738; color: #c8d6e5; border: 1px solid #2a3040; }
+  .btn-secondary:hover { background: #2a3040; }
+
+  /* Legend */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 16px; background: #111620; border-radius: 8px; margin-bottom: 16px; border: 1px solid #1e2738; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8899aa; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* Description */
+  .sim-desc { font-size: 14px; color: #6b7b8d; line-height: 1.6; margin-bottom: 16px; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>SRT</span> Protocol — Interactive Simulation</h1>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="tsbpd">TSBPD Packet Delivery</div>
+  <div class="tab" data-tab="arq">ARQ Retransmission</div>
+  <div class="tab" data-tab="drift">Clock Drift</div>
+</div>
+
+<!-- ==================== TSBPD SIMULATION ==================== -->
+<div class="sim-container active" id="sim-tsbpd">
+  <div class="sim-desc">
+    <strong>TSBPD (Timestamp-Based Packet Delivery)</strong> reconstructs the sender's original packet cadence at the receiver. Packets arrive with jitter from the network but are held in a latency buffer and delivered at precisely scheduled times. Adjust the parameters below to see how latency, jitter, and loss affect the output.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <label>SRT Latency</label>
+      <div class="value" id="tsbpd-latency-val">120 ms</div>
+      <input type="range" id="tsbpd-latency" min="20" max="500" value="120">
+    </div>
+    <div class="control-group">
+      <label>Network Jitter</label>
+      <div class="value" id="tsbpd-jitter-val">40 ms</div>
+      <input type="range" id="tsbpd-jitter" min="0" max="150" value="40">
+    </div>
+    <div class="control-group">
+      <label>Packet Loss %</label>
+      <div class="value" id="tsbpd-loss-val">10%</div>
+      <input type="range" id="tsbpd-loss" min="0" max="30" value="10">
+    </div>
+    <div class="control-group">
+      <label>Packet Rate</label>
+      <div class="value" id="tsbpd-rate-val">3 pkt/s</div>
+      <input type="range" id="tsbpd-rate" min="1" max="15" value="3">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="tsbpd-toggle">Pause</button>
+      <button class="btn btn-secondary" id="tsbpd-reset">Reset</button>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Normal packet</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Jittered / waiting</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Lost / dropped</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> Retransmitted (recovered)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#576574"></div> Too late (TLPKTDROP)</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-tsbpd" height="420"></canvas>
+  </div>
+  <div class="stats" id="tsbpd-stats">
+    <div class="stat-card"><div class="stat-label">Packets Sent</div><div class="stat-value stat-good" id="ts-sent">0</div></div>
+    <div class="stat-card"><div class="stat-label">Delivered OK</div><div class="stat-value stat-good" id="ts-delivered">0</div></div>
+    <div class="stat-card"><div class="stat-label">Recovered (ARQ)</div><div class="stat-value stat-warn" id="ts-recovered">0</div></div>
+    <div class="stat-card"><div class="stat-label">Dropped (Too Late)</div><div class="stat-value stat-bad" id="ts-dropped">0</div></div>
+    <div class="stat-card"><div class="stat-label">Buffer Fill</div><div class="stat-value stat-good" id="ts-buffer">0%</div></div>
+    <div class="stat-card"><div class="stat-label">Effective Loss</div><div class="stat-value stat-good" id="ts-eloss">0%</div></div>
+  </div>
+</div>
+
+<!-- ==================== ARQ SIMULATION ==================== -->
+<div class="sim-container" id="sim-arq">
+  <div class="sim-desc">
+    <strong>ARQ (Automatic Repeat reQuest)</strong> — Watch the NAK/retransmit cycle in action. When the receiver detects a gap in sequence numbers, it sends a NAK after a short delay. The sender retransmits the missing packet. If the retransmit arrives within the latency budget, the packet is recovered. Otherwise, TLPKTDROP discards it.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <label>RTT (Round-Trip Time)</label>
+      <div class="value" id="arq-rtt-val">60 ms</div>
+      <input type="range" id="arq-rtt" min="10" max="300" value="60">
+    </div>
+    <div class="control-group">
+      <label>SRT Latency</label>
+      <div class="value" id="arq-latency-val">200 ms</div>
+      <input type="range" id="arq-latency" min="40" max="600" value="200">
+    </div>
+    <div class="control-group">
+      <label>Packet Loss %</label>
+      <div class="value" id="arq-loss-val">5%</div>
+      <input type="range" id="arq-loss" min="0" max="30" value="5">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="arq-toggle">Pause</button>
+      <button class="btn btn-secondary" id="arq-reset">Reset</button>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Data packet</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Lost packet</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> NAK (receiver → sender)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> Retransmit (sender → receiver)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> ACK (receiver → sender)</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-arq" height="480"></canvas>
+  </div>
+  <div class="stats" id="arq-stats">
+    <div class="stat-card"><div class="stat-label">Packets Sent</div><div class="stat-value stat-good" id="arq-sent">0</div></div>
+    <div class="stat-card"><div class="stat-label">Lost in Transit</div><div class="stat-value stat-bad" id="arq-lost">0</div></div>
+    <div class="stat-card"><div class="stat-label">NAKs Sent</div><div class="stat-value stat-warn" id="arq-naks">0</div></div>
+    <div class="stat-card"><div class="stat-label">Recovered</div><div class="stat-value stat-good" id="arq-recv">0</div></div>
+    <div class="stat-card"><div class="stat-label">Too Late (Dropped)</div><div class="stat-value stat-bad" id="arq-tlpkt">0</div></div>
+    <div class="stat-card"><div class="stat-label">Latency / RTT Ratio</div><div class="stat-value" id="arq-ratio">3.3x</div></div>
+  </div>
+</div>
+
+<!-- ==================== CLOCK DRIFT SIMULATION ==================== -->
+<div class="sim-container" id="sim-drift">
+  <div class="sim-desc">
+    <strong>Clock Drift</strong> — The sender and receiver have different clock crystals. Over time, the receiver's clock drifts, causing the TSBPD buffer to slowly drain (fast clock) or overflow (slow clock). Enable drift correction to see how SRT compensates and keeps the buffer stable indefinitely.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <label>Clock Drift (ppm)</label>
+      <div class="value" id="drift-ppm-val">+100 ppm (fast)</div>
+      <input type="range" id="drift-ppm" min="-200" max="200" value="100">
+    </div>
+    <div class="control-group">
+      <label>SRT Latency</label>
+      <div class="value" id="drift-latency-val">120 ms</div>
+      <input type="range" id="drift-latency" min="40" max="400" value="120">
+    </div>
+    <div class="control-group">
+      <label>Drift Correction</label>
+      <div class="value" id="drift-correction-val">OFF</div>
+      <input type="range" id="drift-correction" min="0" max="1" value="0" step="1">
+    </div>
+    <div class="control-group">
+      <label>Speed (simulation)</label>
+      <div class="value" id="drift-speed-val">3x</div>
+      <input type="range" id="drift-speed" min="1" max="50" value="3">
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="drift-toggle">Pause</button>
+      <button class="btn btn-secondary" id="drift-reset">Reset</button>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Buffer fill level</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Target buffer (latency setting)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Overflow / Underrun zone</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> Drift correction active</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-drift" height="400"></canvas>
+  </div>
+  <div class="stats" id="drift-stats">
+    <div class="stat-card"><div class="stat-label">Elapsed Time</div><div class="stat-value stat-good" id="dr-time">0:00</div></div>
+    <div class="stat-card"><div class="stat-label">Clock Offset</div><div class="stat-value stat-warn" id="dr-offset">0 ms</div></div>
+    <div class="stat-card"><div class="stat-label">Buffer Fill</div><div class="stat-value stat-good" id="dr-buffer">120 ms</div></div>
+    <div class="stat-card"><div class="stat-label">Correction Applied</div><div class="stat-value" id="dr-corr">0 ms</div></div>
+    <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value stat-good" id="dr-status">OK</div></div>
+  </div>
+</div>
+
+<script>
+// ===================== UTILITY =====================
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ===================== TAB SWITCHING =====================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.sim-container').forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('sim-' + tab.dataset.tab).classList.add('active');
+    // Canvas needs correct dimensions after container becomes visible
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
+// ===================== TSBPD SIMULATION =====================
+(function() {
+  const canvas = document.getElementById('canvas-tsbpd');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 420;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  let running = true;
+  let packets = [];
+  let seq = 0;
+  let stats = { sent: 0, delivered: 0, recovered: 0, dropped: 0 };
+  let lastSpawn = 0;
+  let bufferSlots = [];
+  const MAX_BUFFER_SLOTS = 30;
+
+  const sLatency = document.getElementById('tsbpd-latency');
+  const sJitter = document.getElementById('tsbpd-jitter');
+  const sLoss = document.getElementById('tsbpd-loss');
+  const sRate = document.getElementById('tsbpd-rate');
+
+  function getParams() {
+    return { latency: +sLatency.value, jitter: +sJitter.value, loss: +sLoss.value, rate: +sRate.value };
+  }
+
+  [sLatency, sJitter, sLoss, sRate].forEach(s => {
+    s.addEventListener('input', () => {
+      document.getElementById('tsbpd-latency-val').textContent = sLatency.value + ' ms';
+      document.getElementById('tsbpd-jitter-val').textContent = sJitter.value + ' ms';
+      document.getElementById('tsbpd-loss-val').textContent = sLoss.value + '%';
+      document.getElementById('tsbpd-rate-val').textContent = sRate.value + ' pkt/s' + (+sRate.value <= 5 ? ' (slow)' : +sRate.value >= 20 ? ' (fast)' : '');
+    });
+  });
+
+  document.getElementById('tsbpd-toggle').addEventListener('click', function() {
+    running = !running; this.textContent = running ? 'Pause' : 'Resume';
+  });
+  document.getElementById('tsbpd-reset').addEventListener('click', () => {
+    packets = []; seq = 0; stats = { sent: 0, delivered: 0, recovered: 0, dropped: 0 }; bufferSlots = [];
+  });
+
+  const SENDER_X = 0.08, NETWORK_X1 = 0.20, NETWORK_X2 = 0.50;
+  const BUFFER_X1 = 0.55, BUFFER_X2 = 0.78, RECEIVER_X = 0.88;
+
+  function spawnPacket(now, p) {
+    seq++;
+    const lost = Math.random() * 100 < p.loss;
+    const jitterMs = (Math.random() - 0.3) * p.jitter * 2;
+    const transitTime = 4000 + jitterMs * 15;
+    const pkt = {
+      seq, x: SENDER_X, state: 'sending',
+      lost, jitterMs, transitTime,
+      spawnTime: now, arriveBufferTime: 0,
+      color: '#4ecdc4', nakSent: false, retransmitted: false,
+      row: seq % 8,
+    };
+    if (lost) { pkt.color = '#ff6b6b'; }
+    packets.push(pkt);
+    stats.sent++;
+  }
+
+  let prevTime = performance.now();
+  function update(now) {
+    if (!running) { requestAnimationFrame(update); return; }
+    const dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+    const p = getParams();
+    if (now - lastSpawn > 1000 / p.rate) { spawnPacket(now, p); lastSpawn = now; }
+
+    bufferSlots = [];
+    for (let i = packets.length - 1; i >= 0; i--) {
+      const pkt = packets[i];
+      const age = now - pkt.spawnTime;
+      if (pkt.state === 'sending') {
+        pkt.x = lerp(SENDER_X, NETWORK_X1, Math.min(1, age / 1000));
+        if (age > 1000) pkt.state = 'in-network';
+      }
+      if (pkt.state === 'in-network') {
+        if (pkt.lost) {
+          // Lost packet drifts partway into network then fades out
+          const lostProgress = Math.min(1, (age - 1000) / (pkt.transitTime * 0.3));
+          pkt.x = lerp(NETWORK_X1, (NETWORK_X1 + NETWORK_X2) * 0.45, lostProgress);
+          pkt.alpha = lostProgress > 0.6 ? Math.max(0, 1 - (lostProgress - 0.6) / 0.4) : 1;
+          if (lostProgress >= 1) {
+            // Red packet fully faded — now wait for NAK cycle
+            pkt.state = 'lost-waiting';
+            pkt.lostFadeTime = now;
+          }
+        } else {
+          const progress = (age - 1000) / pkt.transitTime;
+          pkt.x = lerp(NETWORK_X1, NETWORK_X2, clamp(progress, 0, 1));
+          if (progress >= 1) { pkt.state = 'in-buffer'; pkt.arriveBufferTime = now; }
+        }
+      }
+      // Lost packet waiting for NAK/retransmit cycle
+      if (pkt.state === 'lost-waiting') {
+        pkt.alpha = 0; // original red packet is invisible
+        const waitAge = now - pkt.lostFadeTime;
+        if (waitAge > 4000) {
+          // NAK cycle complete — spawn retransmit from sender
+          pkt.state = 'retransmit-sending';
+          pkt.retransmitStart = now;
+          pkt.retransmitted = true;
+          pkt.color = '#a29bfe';
+          pkt.lost = false;
+        }
+        if (age > 20000 && !pkt.retransmitted) {
+          pkt.state = 'dropped'; pkt.color = '#576574'; pkt.alpha = 1; stats.dropped++;
+        }
+      }
+      // Retransmit: purple packet flies from sender through network to buffer
+      if (pkt.state === 'retransmit-sending') {
+        const rtAge = now - pkt.retransmitStart;
+        pkt.alpha = 1;
+        pkt.x = lerp(SENDER_X, NETWORK_X1, Math.min(1, rtAge / 1000));
+        if (rtAge > 1000) pkt.state = 'retransmit-in-network';
+      }
+      if (pkt.state === 'retransmit-in-network') {
+        const rtAge = now - pkt.retransmitStart - 1000;
+        pkt.x = lerp(NETWORK_X1, NETWORK_X2, clamp(rtAge / pkt.transitTime, 0, 1));
+        if (rtAge >= pkt.transitTime) {
+          // Retransmit arrived — check TSBPD deadline
+          // Deadline = packet_timestamp + latency. In visual terms:
+          // low latency (<100ms) = tight deadline, retransmit likely too late
+          // high latency (>200ms) = generous deadline, retransmit likely in time
+          // We simulate an assumed RTT of ~60ms to compute deadline
+          const assumedRtt = 60;
+          const nakCycleRealMs = assumedRtt * 2.5; // detect + NAK + retransmit
+          if (nakCycleRealMs > p.latency) {
+            // Too late! TLPKTDROP
+            pkt.state = 'too-late-at-buffer';
+            pkt.tooLateTime = now;
+            pkt.x = BUFFER_X1;
+            pkt.color = '#576574';
+            stats.dropped++;
+          } else {
+            pkt.state = 'in-buffer';
+            pkt.arriveBufferTime = now;
+            stats.recovered++;
+          }
+        }
+      }
+      // Too late — packet rejected at buffer edge
+      if (pkt.state === 'too-late-at-buffer') {
+        pkt.alpha = 1;
+        pkt.x = BUFFER_X1;
+        const tlAge = now - pkt.tooLateTime;
+        if (tlAge > 3000) {
+          pkt.state = 'dropped';
+          pkt.alpha = 1;
+        }
+      }
+      if (pkt.state === 'in-buffer') {
+        const progress = (now - pkt.arriveBufferTime) / (p.latency * 25);
+        pkt.x = lerp(BUFFER_X1, BUFFER_X2, clamp(progress, 0, 1));
+        pkt.color = pkt.retransmitted ? '#a29bfe' : '#f9ca24';
+        bufferSlots.push(pkt);
+        if (progress >= 1) pkt.state = 'delivering';
+      }
+      if (pkt.state === 'delivering') {
+        const dAge = now - (pkt.arriveBufferTime + p.latency * 25);
+        pkt.x = lerp(BUFFER_X2, RECEIVER_X, clamp(dAge / 1000, 0, 1));
+        pkt.color = '#4ecdc4';
+        if (pkt.x >= RECEIVER_X - 0.01) { pkt.state = 'delivered'; stats.delivered++; }
+      }
+      if (pkt.state === 'delivered' || pkt.state === 'dropped') {
+        pkt.alpha = (pkt.alpha || 1) - dt * 0.002;
+        if (pkt.alpha <= 0) packets.splice(i, 1);
+      }
+    }
+    if (packets.length > 200) packets.splice(0, packets.length - 200);
+    draw(p); updateTsbpdStats();
+    requestAnimationFrame(update);
+  }
+
+  function draw(p) {
+    ctx.clearRect(0, 0, W, H);
+    const zones = [
+      { x1: 0, x2: SENDER_X + 0.06, label: 'SENDER', color: '#0d2818' },
+      { x1: NETWORK_X1 - 0.02, x2: NETWORK_X2 + 0.02, label: 'NETWORK (jitter + loss)', color: '#1a0d0d' },
+      { x1: BUFFER_X1 - 0.02, x2: BUFFER_X2 + 0.02, label: 'TSBPD BUFFER (' + p.latency + 'ms)', color: '#1a1a0d' },
+      { x1: RECEIVER_X - 0.06, x2: 1, label: 'RECEIVER', color: '#0d1828' },
+    ];
+    zones.forEach(z => {
+      ctx.fillStyle = z.color;
+      ctx.fillRect(z.x1 * W, 0, (z.x2 - z.x1) * W, H);
+      ctx.fillStyle = '#4a5568'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(z.label, ((z.x1 + z.x2) / 2) * W, 20);
+    });
+    [NETWORK_X1 - 0.02, NETWORK_X2 + 0.02, BUFFER_X1 - 0.02, BUFFER_X2 + 0.02].forEach(x => {
+      ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(x * W, 0); ctx.lineTo(x * W, H); ctx.stroke(); ctx.setLineDash([]);
+    });
+    ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(SENDER_X * W, H / 2); ctx.lineTo(RECEIVER_X * W, H / 2); ctx.stroke();
+
+    packets.forEach(pkt => {
+      const px = pkt.x * W, py = 60 + (pkt.row * 28);
+      ctx.globalAlpha = pkt.alpha || 1;
+      ctx.fillStyle = pkt.color;
+      rr(ctx, px - 14, py - 10, 28, 20, 4); ctx.fill();
+      ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(pkt.seq, px, py + 4);
+
+      // Step-by-step annotations — always fully visible regardless of packet alpha
+      ctx.globalAlpha = 1;
+      ctx.font = 'bold 10px system-ui';
+      if (pkt.state === 'in-network' && pkt.lost) {
+        // Red packet fading in network
+        ctx.fillStyle = '#ff6b6b'; ctx.textAlign = 'center';
+        ctx.fillText('\u2716 Pkt #' + pkt.seq + ' lost in network', px, py - 16);
+      }
+      if (pkt.state === 'lost-waiting') {
+        const waitAge = pkt.lostFadeTime ? (performance.now() - pkt.lostFadeTime) : 0;
+        const rxX = RECEIVER_X * W;
+        const sxX = SENDER_X * W;
+        ctx.textAlign = 'center';
+        if (waitAge < 1000) {
+          // Stage 1: Receiver detects gap
+          ctx.fillStyle = '#f9ca24';
+          ctx.fillText('Receiver detects gap (#' + pkt.seq + ')', rxX - 40, py - 4);
+        } else if (waitAge < 2800) {
+          // Stage 2: NAK flying from receiver to sender
+          ctx.fillStyle = '#f9ca24';
+          const nakProgress = (waitAge - 1000) / 1800;
+          const nakX = lerp(rxX, sxX, nakProgress);
+          ctx.fillText('\u2190 NAK #' + pkt.seq + ' to sender', nakX, py - 4);
+        } else {
+          // Stage 3: Sender receives NAK, prepares retransmit
+          ctx.fillStyle = '#f9ca24';
+          ctx.fillText('Sender received NAK for #' + pkt.seq + ' from Receiver', sxX + 80, py - 4);
+        }
+      }
+      if (pkt.state === 'retransmit-sending') {
+        ctx.fillStyle = '#a29bfe'; ctx.textAlign = 'left';
+        ctx.fillText('Retransmitting #' + pkt.seq, px + 20, py - 4);
+      }
+      if (pkt.state === 'retransmit-in-network') {
+        ctx.fillStyle = '#a29bfe'; ctx.textAlign = 'center';
+        ctx.fillText('Retransmit #' + pkt.seq + ' in transit', px, py - 16);
+      }
+      if (pkt.state === 'too-late-at-buffer') {
+        ctx.fillStyle = '#ff6b6b'; ctx.textAlign = 'center';
+        var bufX = BUFFER_X1 * W;
+        ctx.fillText('Retransmit #' + pkt.seq + ' arrived TOO LATE \u2014 DROPPED (TLPKTDROP)', bufX + 80, py - 16);
+        ctx.fillText('Deadline passed: pkt_timestamp + latency (' + getParams().latency + 'ms) already expired', bufX + 80, py + 20);
+      }
+
+      ctx.globalAlpha = 1;
+    });
+
+    const bufferFill = clamp(bufferSlots.length / MAX_BUFFER_SLOTS, 0, 1);
+    const mX = BUFFER_X2 * W + 8, mW = 12, mH = H - 60, mY = 35;
+    ctx.fillStyle = '#1e2738'; ctx.fillRect(mX, mY, mW, mH);
+    ctx.fillStyle = bufferFill > 0.9 ? '#ff6b6b' : bufferFill > 0.6 ? '#f9ca24' : '#4ecdc4';
+    ctx.fillRect(mX, mY + mH * (1 - bufferFill), mW, mH * bufferFill);
+    ctx.strokeStyle = '#2a3040'; ctx.strokeRect(mX, mY, mW, mH);
+    ctx.fillStyle = '#4ecdc4'; ctx.font = '24px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('TX', SENDER_X * W * 0.5, H / 2 + 8);
+    ctx.fillText('RX', (RECEIVER_X + (1 - RECEIVER_X) / 2) * W, H / 2 + 8);
+  }
+
+  function updateTsbpdStats() {
+    document.getElementById('ts-sent').textContent = stats.sent;
+    document.getElementById('ts-delivered').textContent = stats.delivered;
+    document.getElementById('ts-recovered').textContent = stats.recovered;
+    document.getElementById('ts-dropped').textContent = stats.dropped;
+    const fill = Math.round(clamp(bufferSlots.length / MAX_BUFFER_SLOTS * 100, 0, 100));
+    document.getElementById('ts-buffer').textContent = fill + '%';
+    document.getElementById('ts-buffer').className = 'stat-value ' + (fill > 90 ? 'stat-bad' : fill > 60 ? 'stat-warn' : 'stat-good');
+    const eloss = stats.sent > 0 ? ((stats.dropped / stats.sent) * 100).toFixed(1) : '0';
+    document.getElementById('ts-eloss').textContent = eloss + '%';
+    document.getElementById('ts-eloss').className = 'stat-value ' + (eloss > 1 ? 'stat-bad' : eloss > 0 ? 'stat-warn' : 'stat-good');
+  }
+  requestAnimationFrame(update);
+})();
+
+// ===================== ARQ SIMULATION =====================
+(function() {
+  const canvas = document.getElementById('canvas-arq');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 480;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  let running = true;
+  let seq = 0;
+  let stats = { sent: 0, lost: 0, naks: 0, recovered: 0, dropped: 0 };
+  let lastSpawn = 0;
+  let rows = [];
+
+  const sRtt = document.getElementById('arq-rtt');
+  const sLatency = document.getElementById('arq-latency');
+  const sLoss = document.getElementById('arq-loss');
+
+  function getParams() { return { rtt: +sRtt.value, latency: +sLatency.value, loss: +sLoss.value }; }
+
+  [sRtt, sLatency, sLoss].forEach(s => {
+    s.addEventListener('input', () => {
+      document.getElementById('arq-rtt-val').textContent = sRtt.value + ' ms';
+      document.getElementById('arq-latency-val').textContent = sLatency.value + ' ms';
+      document.getElementById('arq-loss-val').textContent = sLoss.value + '%';
+    });
+  });
+
+  document.getElementById('arq-toggle').addEventListener('click', function() {
+    running = !running; this.textContent = running ? 'Pause' : 'Resume';
+  });
+  document.getElementById('arq-reset').addEventListener('click', () => {
+    rows = []; seq = 0; stats = { sent: 0, lost: 0, naks: 0, recovered: 0, dropped: 0 };
+  });
+
+  // Layout constants
+  const COL_S = 0.15;       // sender X (fraction of W)
+  const COL_R = 0.85;       // receiver X
+  const HEADER_H = 36;      // top header
+  const FOOTER_H = 42;      // bottom info bar
+  const ROW_H = 68;          // px per row
+  const FLIGHT_MS = 2500;   // visual ms for one-way packet flight
+  const NAK_DELAY_MS = 800; // visual ms before receiver sends NAK
+  const SPAWN_MS = 4000;    // ms between new packets
+  const MAX_VISIBLE = Math.floor((H - HEADER_H - FOOTER_H) / ROW_H); // ~5-6 rows
+
+  // Time-scale: FLIGHT_MS of visual time = RTT/2 of real protocol time
+  // This makes the RTT slider actually affect the too-late logic correctly
+  function toRealMs(visualMs, rtt) {
+    return visualMs * (rtt / 2) / FLIGHT_MS;
+  }
+
+  let prevTime = performance.now();
+  function update(now) {
+    if (!running) { prevTime = now; requestAnimationFrame(update); return; }
+    prevTime = now;
+    const p = getParams();
+
+    // Spawn new packet
+    if (now - lastSpawn > SPAWN_MS) {
+      seq++;
+      const lost = Math.random() * 100 < p.loss;
+      rows.push({
+        seq, spawnTime: now, lost,
+        state: 'flying', // flying | arrived | gap-detected | nak-flying | retransmit-flying | recovered | too-late
+        gapTime: 0, nakStartTime: 0, retransmitStartTime: 0,
+        counted: false,
+      });
+      stats.sent++;
+      if (lost) stats.lost++;
+      lastSpawn = now;
+    }
+
+    // Update row states
+    rows.forEach(row => {
+      const age = now - row.spawnTime;
+
+      if (row.state === 'flying' && age >= FLIGHT_MS) {
+        if (row.lost) {
+          row.state = 'gap-detected';
+          row.gapTime = now;
+        } else {
+          row.state = 'arrived';
+        }
+      }
+
+      if (row.state === 'gap-detected' && now - row.gapTime >= NAK_DELAY_MS) {
+        row.state = 'nak-flying';
+        row.nakStartTime = now;
+        stats.naks++;
+      }
+
+      if (row.state === 'nak-flying' && now - row.nakStartTime >= FLIGHT_MS) {
+        // NAK arrived at sender — check if retransmit can arrive in time
+        var realSoFar = toRealMs(now - row.spawnTime, p.rtt);
+        var retransmitCost = p.rtt / 2; // one more half-trip in real time
+        if (realSoFar + retransmitCost > p.latency) {
+          row.state = 'too-late';
+          if (!row.counted) { stats.dropped++; row.counted = true; }
+        } else {
+          row.state = 'retransmit-flying';
+          row.retransmitStartTime = now;
+        }
+      }
+
+      if (row.state === 'retransmit-flying' && now - row.retransmitStartTime >= FLIGHT_MS) {
+        var realTotal = toRealMs(now - row.spawnTime, p.rtt);
+        if (realTotal > p.latency) {
+          row.state = 'too-late';
+          if (!row.counted) { stats.dropped++; row.counted = true; }
+        } else {
+          row.state = 'recovered';
+          if (!row.counted) { stats.recovered++; row.counted = true; }
+        }
+      }
+    });
+
+    // Keep only the most recent rows (enough for display + animation completion)
+    var maxAge = (MAX_VISIBLE + 2) * SPAWN_MS + 4000;
+    rows = rows.filter(function(r) { return (now - r.spawnTime) < maxAge; });
+
+    draw(p, now);
+    updateArqStats(p);
+    requestAnimationFrame(update);
+  }
+
+  function draw(p, now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    var sX = COL_S * W, rX = COL_R * W;
+    var midX = (sX + rX) / 2;
+
+    // Column backgrounds
+    ctx.fillStyle = 'rgba(13,40,24,0.04)';
+    ctx.fillRect(0, 0, sX + 50, H);
+    ctx.fillStyle = 'rgba(13,24,40,0.04)';
+    ctx.fillRect(rX - 50, 0, W - rX + 50, H);
+
+    // Column headers
+    ctx.fillStyle = '#4ecdc4'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('SENDER', sX, 24);
+    ctx.fillText('RECEIVER', rX, 24);
+
+    // Lifelines
+    ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sX, HEADER_H); ctx.lineTo(sX, H - FOOTER_H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(rX, HEADER_H); ctx.lineTo(rX, H - FOOTER_H); ctx.stroke();
+
+    // Time arrow
+    ctx.fillStyle = '#4a5568'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('\u25BC time', 8, H - FOOTER_H - 6);
+
+    // Show only the most recent MAX_VISIBLE rows
+    var displayRows = rows.slice(-MAX_VISIBLE);
+
+    displayRows.forEach(function(row, idx) {
+      var baseY = HEADER_H + 14 + idx * ROW_H;
+      var age = now - row.spawnTime;
+
+      // --- Dashed guide for this row ---
+      ctx.strokeStyle = '#1e273830';
+      ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(sX, baseY); ctx.lineTo(rX, baseY); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Seq label
+      ctx.fillStyle = '#6b7b8d'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText('#' + row.seq, sX - 10, baseY + 4);
+
+      // ===== DATA PACKET (sender -> receiver) =====
+      var dataProgress = clamp(age / FLIGHT_MS, 0, 1);
+      var dataX = lerp(sX, rX, dataProgress);
+
+      if (dataProgress < 1) {
+        // Packet still flying
+        var alpha = 1;
+        if (row.lost && dataProgress > 0.35) {
+          alpha = Math.max(0, 1 - (dataProgress - 0.35) / 0.3);
+        }
+        // Trail line
+        if (dataProgress > 0.05) {
+          ctx.strokeStyle = row.lost ? 'rgba(255,107,107,0.3)' : 'rgba(78,205,196,0.3)';
+          ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sX, baseY); ctx.lineTo(dataX - 22, baseY); ctx.stroke();
+        }
+        // Packet pill
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = row.lost ? '#ff6b6b' : '#4ecdc4';
+        rr(ctx, dataX - 22, baseY - 13, 44, 26, 6); ctx.fill();
+        ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(row.seq, dataX, baseY + 4);
+        ctx.globalAlpha = 1;
+        // Annotation: packet in flight
+        if (row.lost && dataProgress > 0.3 && dataProgress < 0.65) {
+          ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('Pkt #' + row.seq + ' lost in network', midX, baseY - 18);
+        }
+      } else if (!row.lost) {
+        // Delivered — solid arrow with arrowhead
+        ctx.strokeStyle = 'rgba(78,205,196,0.35)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sX, baseY); ctx.lineTo(rX - 2, baseY); ctx.stroke();
+        ctx.fillStyle = '#4ecdc4';
+        ctx.beginPath(); ctx.moveTo(rX, baseY); ctx.lineTo(rX - 10, baseY - 5); ctx.lineTo(rX - 10, baseY + 5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#4ecdc4'; ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'left';
+        ctx.fillText('\u2713', rX + 8, baseY + 5);
+        // Annotation: delivered
+        ctx.fillStyle = '#4ecdc4'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('Pkt #' + row.seq + ' delivered to Receiver', midX, baseY - 10);
+      } else {
+        // Lost — broken arrow with LOST label
+        ctx.strokeStyle = 'rgba(255,107,107,0.25)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sX, baseY); ctx.lineTo(midX - 12, baseY); ctx.stroke();
+        ctx.fillStyle = '#ff6b6b'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('LOST', midX, baseY - 16);
+      }
+
+      // ===== GAP DETECTED annotation =====
+      if (row.state === 'gap-detected') {
+        ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'right';
+        ctx.fillText('Receiver detects gap (#' + row.seq + ')', rX - 8, baseY + 24);
+      }
+
+      // ===== NAK ARROW (receiver -> sender) =====
+      var showNak = (row.state === 'nak-flying' || row.state === 'retransmit-flying'
+                     || row.state === 'recovered' || row.state === 'too-late');
+      if (showNak && row.nakStartTime > 0) {
+        var nakY = baseY + 20;
+        var nakAge = now - row.nakStartTime;
+        var nakProgress = clamp(nakAge / FLIGHT_MS, 0, 1);
+        var nakX = lerp(rX, sX, nakProgress);
+
+        if (row.state === 'nak-flying' && nakProgress < 1) {
+          // Trail
+          ctx.strokeStyle = 'rgba(249,202,36,0.25)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(rX, nakY); ctx.lineTo(nakX + 14, nakY); ctx.stroke();
+          // Diamond
+          ctx.fillStyle = '#f9ca24';
+          ctx.beginPath();
+          ctx.moveTo(nakX, nakY - 10); ctx.lineTo(nakX + 12, nakY);
+          ctx.lineTo(nakX, nakY + 10); ctx.lineTo(nakX - 12, nakY);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('NAK', nakX, nakY + 3);
+          // Annotation: NAK in flight
+          ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('\u2190 NAK #' + row.seq + ' sent to Sender from Receiver', nakX, nakY - 16);
+        } else {
+          // NAK completed — full arrow pointing left
+          ctx.strokeStyle = 'rgba(249,202,36,0.25)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(rX, nakY); ctx.lineTo(sX + 2, nakY); ctx.stroke();
+          ctx.fillStyle = '#f9ca24';
+          ctx.beginPath(); ctx.moveTo(sX, nakY); ctx.lineTo(sX + 10, nakY - 5); ctx.lineTo(sX + 10, nakY + 5); ctx.closePath(); ctx.fill();
+          // Annotation: Sender received NAK
+          ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'left';
+          ctx.fillText('Sender received NAK for #' + row.seq + ' from Receiver', sX + 14, nakY - 8);
+        }
+      }
+
+      // ===== RETRANSMIT ARROW (sender -> receiver) =====
+      if (row.state === 'retransmit-flying' || row.state === 'recovered') {
+        var rtY = baseY + 40;
+        var rtAge = now - row.retransmitStartTime;
+        var rtProgress = clamp(rtAge / FLIGHT_MS, 0, 1);
+        var rtX = lerp(sX, rX, rtProgress);
+
+        if (row.state === 'retransmit-flying') {
+          // Trail
+          ctx.strokeStyle = 'rgba(162,155,254,0.25)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(sX, rtY); ctx.lineTo(rtX - 22, rtY); ctx.stroke();
+          // Pill
+          ctx.fillStyle = '#a29bfe';
+          rr(ctx, rtX - 22, rtY - 13, 44, 26, 6); ctx.fill();
+          ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('R' + row.seq, rtX, rtY + 4);
+          // Annotation: retransmit in flight
+          ctx.fillStyle = '#a29bfe'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+          ctx.fillText('Sender retransmits #' + row.seq + ' \u2192 Receiver', midX, rtY - 16);
+        } else {
+          // Recovered — full arrow
+          ctx.strokeStyle = 'rgba(162,155,254,0.25)'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(sX, rtY); ctx.lineTo(rX - 2, rtY); ctx.stroke();
+          ctx.fillStyle = '#a29bfe';
+          ctx.beginPath(); ctx.moveTo(rX, rtY); ctx.lineTo(rX - 10, rtY - 5); ctx.lineTo(rX - 10, rtY + 5); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#a29bfe'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+          ctx.fillText('\u2713 RECOVERED', rX + 8, rtY + 5);
+        }
+      }
+
+      // ===== TOO LATE LABEL =====
+      if (row.state === 'too-late') {
+        var tlY = baseY + 40;
+        ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('TOO LATE \u2014 DROPPED (TLPKTDROP)', midX, tlY + 4);
+      }
+
+      // ===== LATENCY BUDGET BAR (for lost packets) =====
+      if (row.lost && age > FLIGHT_MS) {
+        var realElapsed = toRealMs(age, p.rtt);
+        var budgetFrac = clamp(realElapsed / p.latency, 0, 1);
+        var barY = baseY + ROW_H - 8;
+        var barW = rX - sX;
+        // Background
+        ctx.fillStyle = '#1e2738';
+        ctx.fillRect(sX, barY, barW, 4);
+        // Fill
+        var barColor = budgetFrac > 0.85 ? '#ff6b6b' : budgetFrac > 0.5 ? '#f9ca24' : '#4ecdc4';
+        ctx.fillStyle = barColor;
+        ctx.fillRect(sX, barY, barW * budgetFrac, 4);
+        // Label
+        ctx.fillStyle = barColor; ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+        ctx.fillText('budget ' + Math.round(budgetFrac * 100) + '%', sX + barW * budgetFrac + 4, barY + 4);
+      }
+    });
+
+    // Footer info bar
+    ctx.fillStyle = '#111620'; ctx.fillRect(0, H - FOOTER_H, W, FOOTER_H);
+    ctx.fillStyle = '#6b7b8d'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+    var ratio = (p.latency / p.rtt).toFixed(1);
+    var ratioColor = ratio >= 4 ? '#4ecdc4' : ratio >= 2 ? '#f9ca24' : '#ff6b6b';
+    ctx.fillText('Latency: ' + p.latency + 'ms  \u00B7  RTT: ' + p.rtt + 'ms  \u00B7  ', W * 0.36, H - 16);
+    ctx.fillStyle = ratioColor; ctx.font = 'bold 12px system-ui';
+    var ratioLabel = ratio >= 4 ? ' (good)' : ratio >= 2 ? ' (tight)' : ' (too low!)';
+    ctx.fillText('Ratio: ' + ratio + 'x' + ratioLabel, W * 0.68, H - 16);
+  }
+
+  function updateArqStats(p) {
+    document.getElementById('arq-sent').textContent = stats.sent;
+    document.getElementById('arq-lost').textContent = stats.lost;
+    document.getElementById('arq-naks').textContent = stats.naks;
+    document.getElementById('arq-recv').textContent = stats.recovered;
+    document.getElementById('arq-tlpkt').textContent = stats.dropped;
+    var ratio = (p.latency / p.rtt).toFixed(1);
+    var ratioEl = document.getElementById('arq-ratio');
+    ratioEl.textContent = ratio + 'x';
+    ratioEl.className = 'stat-value ' + (ratio >= 4 ? 'stat-good' : ratio >= 2 ? 'stat-warn' : 'stat-bad');
+  }
+  requestAnimationFrame(update);
+})();
+
+// ===================== CLOCK DRIFT SIMULATION =====================
+(function() {
+  const canvas = document.getElementById('canvas-drift');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 400;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  let running = true;
+  let history = [];
+  let simTime = 0;       // simulated elapsed time in ms
+  let clockOffset = 0;   // how far receiver clock has drifted in ms
+  let status = 'OK';
+
+  const sPpm = document.getElementById('drift-ppm');
+  const sLatency = document.getElementById('drift-latency');
+  const sCorrection = document.getElementById('drift-correction');
+  const sSpeed = document.getElementById('drift-speed');
+
+  function getParams() {
+    return { ppm: +sPpm.value, latency: +sLatency.value, correction: +sCorrection.value === 1, speed: +sSpeed.value };
+  }
+
+  [sPpm, sLatency, sCorrection, sSpeed].forEach(s => {
+    s.addEventListener('input', () => {
+      const ppm = +sPpm.value;
+      document.getElementById('drift-ppm-val').textContent = (ppm >= 0 ? '+' : '') + ppm + ' ppm (' + (ppm >= 0 ? 'fast' : 'slow') + ')';
+      document.getElementById('drift-latency-val').textContent = sLatency.value + ' ms';
+      document.getElementById('drift-correction-val').textContent = +sCorrection.value === 1 ? 'ON' : 'OFF';
+      document.getElementById('drift-speed-val').textContent = sSpeed.value + 'x';
+    });
+  });
+
+  document.getElementById('drift-toggle').addEventListener('click', function() {
+    running = !running; this.textContent = running ? 'Pause' : 'Resume';
+  });
+  document.getElementById('drift-reset').addEventListener('click', () => {
+    history = []; simTime = 0; clockOffset = 0; status = 'OK';
+  });
+
+  let prevTime = performance.now();
+  function update(now) {
+    if (!running) { requestAnimationFrame(update); return; }
+    const dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+    const p = getParams();
+
+    // Advance simulation time
+    const simDt = dt * p.speed; // ms of simulated time per real frame
+    simTime += simDt;
+
+    // Clock drift calculation:
+    // ppm = parts per million. 100 ppm = 100 microseconds drift per second = 0.1 ms/s
+    // Over simDt ms of simulated time:
+    //   drift = (ppm / 1,000,000) * simDt  [in ms]
+    // e.g., 100 ppm, simDt = 160ms: drift = 100/1000000 * 160 = 0.016 ms
+    // Over 10 sim-minutes (600,000ms): drift = 100/1000000 * 600000 = 60ms  ✓
+    clockOffset += (p.ppm / 1000000) * simDt;
+
+    // Drift correction: SRT gradually compensates
+    if (p.correction) {
+      // Correct 3% of remaining offset each frame (smooth exponential convergence)
+      clockOffset *= (1 - 0.03);
+    }
+
+    // Effective buffer fill:
+    // Positive ppm (fast clock) → clockOffset grows positive → buffer shrinks
+    // Negative ppm (slow clock) → clockOffset grows negative → buffer grows
+    const effectiveBuffer = p.latency - clockOffset;
+
+    // Status
+    if (effectiveBuffer <= 0) status = 'UNDERRUN';
+    else if (effectiveBuffer >= p.latency * 2.5) status = 'OVERFLOW';
+    else if (effectiveBuffer < p.latency * 0.3) status = 'WARNING';
+    else if (effectiveBuffer > p.latency * 2) status = 'WARNING';
+    else status = 'OK';
+
+    // Record history point every ~200ms sim time
+    if (history.length === 0 || simTime - history[history.length - 1].t > 200) {
+      history.push({ t: simTime, buffer: effectiveBuffer, offset: clockOffset, target: p.latency });
+    }
+    if (history.length > 3000) history.splice(0, history.length - 3000);
+
+    draw(p, effectiveBuffer);
+    updateDriftStats(p, effectiveBuffer);
+    requestAnimationFrame(update);
+  }
+
+  function draw(p, effectiveBuffer) {
+    ctx.clearRect(0, 0, W, H);
+
+    const pad = { left: 70, right: 30, top: 45, bottom: 50 };
+    const gW = W - pad.left - pad.right;
+    const gH = H - pad.top - pad.bottom;
+
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#111620'; ctx.fillRect(pad.left, pad.top, gW, gH);
+
+    const yMax = p.latency * 3;
+
+    // Danger zones
+    // Overflow zone (top)
+    const overflowZoneH = gH * (1 - (p.latency * 2) / yMax);
+    ctx.fillStyle = '#ff6b6b08';
+    ctx.fillRect(pad.left, pad.top, gW, overflowZoneH);
+
+    // Underrun zone (bottom)
+    const underrunZoneTop = pad.top + gH - (p.latency * 0.2 / yMax) * gH;
+    ctx.fillStyle = '#ff6b6b08';
+    ctx.fillRect(pad.left, underrunZoneTop, gW, pad.top + gH - underrunZoneTop);
+
+    // Target line (ideal buffer = latency)
+    const targetY = pad.top + gH - (p.latency / yMax) * gH;
+    ctx.strokeStyle = '#f9ca24'; ctx.lineWidth = 1.5; ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.moveTo(pad.left, targetY); ctx.lineTo(pad.left + gW, targetY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f9ca24'; ctx.font = '11px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText('Target: ' + p.latency + 'ms', pad.left - 8, targetY + 4);
+
+    // Zero line
+    ctx.strokeStyle = '#ff6b6b60'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, pad.top + gH); ctx.lineTo(pad.left + gW, pad.top + gH); ctx.stroke();
+    ctx.fillStyle = '#ff6b6b'; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText('0 (underrun)', pad.left - 8, pad.top + gH + 4);
+
+    // Y-axis grid and labels
+    ctx.fillStyle = '#4a5568'; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
+    const yStep = Math.max(20, Math.ceil(yMax / 10 / 10) * 10);
+    for (let v = 0; v <= yMax; v += yStep) {
+      const y = pad.top + gH - (v / yMax) * gH;
+      if (Math.abs(v - p.latency) > yStep * 0.4) {
+        ctx.fillText(v + 'ms', pad.left - 8, y + 4);
+      }
+      ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + gW, y); ctx.stroke();
+    }
+
+    // Plot buffer history
+    if (history.length > 1) {
+      const tMin = history[0].t;
+      const tMax = history[history.length - 1].t;
+      const tRange = Math.max(tMax - tMin, 1);
+
+      const lineColor = p.correction ? '#a29bfe' : '#4ecdc4';
+      ctx.strokeStyle = lineColor; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      history.forEach((h, i) => {
+        const x = pad.left + ((h.t - tMin) / tRange) * gW;
+        const y = pad.top + gH - (clamp(h.buffer, -yMax * 0.1, yMax) / yMax) * gH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Gradient fill under curve
+      const lastH = history[history.length - 1];
+      const lastX = pad.left + ((lastH.t - tMin) / tRange) * gW;
+      ctx.lineTo(lastX, pad.top + gH);
+      ctx.lineTo(pad.left, pad.top + gH);
+      ctx.closePath();
+      ctx.fillStyle = lineColor + '18';
+      ctx.fill();
+
+      // X-axis labels
+      ctx.fillStyle = '#4a5568'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      for (let i = 0; i <= 6; i++) {
+        const t = tMin + (tRange / 6) * i;
+        const x = pad.left + (i / 6) * gW;
+        const m = Math.floor(t / 60000);
+        const s = Math.floor((t % 60000) / 1000);
+        ctx.fillText(m + ':' + String(s).padStart(2, '0'), x, H - 12);
+      }
+    }
+
+    // Title
+    ctx.fillStyle = '#c8d6e5'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('TSBPD Buffer Fill Over Time' + (p.correction ? '  [Drift Correction ON]' : ''), pad.left, 28);
+
+    // Status pill
+    const statusColors = { 'OK': '#4ecdc4', 'WARNING': '#f9ca24', 'UNDERRUN': '#ff6b6b', 'OVERFLOW': '#ff6b6b' };
+    ctx.fillStyle = statusColors[status]; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(status, W - pad.right, 28);
+
+    // Current buffer indicator (right edge)
+    if (history.length > 0) {
+      const curBuf = history[history.length - 1].buffer;
+      const curY = pad.top + gH - (clamp(curBuf, 0, yMax) / yMax) * gH;
+      ctx.fillStyle = statusColors[status];
+      ctx.beginPath(); ctx.arc(pad.left + gW, curY, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function updateDriftStats(p, effectiveBuffer) {
+    const m = Math.floor(simTime / 60000);
+    const s = Math.floor((simTime % 60000) / 1000);
+    document.getElementById('dr-time').textContent = m + ':' + String(s).padStart(2, '0');
+
+    const offsetEl = document.getElementById('dr-offset');
+    offsetEl.textContent = (clockOffset >= 0 ? '+' : '') + clockOffset.toFixed(1) + ' ms';
+    offsetEl.className = 'stat-value ' + (Math.abs(clockOffset) > p.latency * 0.5 ? 'stat-bad' : Math.abs(clockOffset) > 20 ? 'stat-warn' : 'stat-good');
+
+    const bufEl = document.getElementById('dr-buffer');
+    bufEl.textContent = Math.max(0, effectiveBuffer).toFixed(0) + ' ms';
+    bufEl.className = 'stat-value ' + (effectiveBuffer <= 0 ? 'stat-bad' : effectiveBuffer < p.latency * 0.3 ? 'stat-warn' : 'stat-good');
+
+    const corrVal = p.latency - effectiveBuffer;
+    document.getElementById('dr-corr').textContent = (p.correction ? 'Active' : 'Off');
+    document.getElementById('dr-corr').className = 'stat-value ' + (p.correction ? 'stat-good' : 'stat-warn');
+
+    const statusEl = document.getElementById('dr-status');
+    statusEl.textContent = status;
+    statusEl.className = 'stat-value ' + (status === 'OK' ? 'stat-good' : status === 'WARNING' ? 'stat-warn' : 'stat-bad');
+  }
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAT / SRT / LRS — Interactive Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  /* Header */
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; display: flex; align-items: center; gap: 20px; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+
+  /* Tab Navigation */
+  .tabs { display: flex; gap: 4px; background: #111620; padding: 8px 30px; border-bottom: 1px solid #2a3040; }
+  .tab { padding: 10px 24px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; color: #6b7b8d; border: 1px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: #a0b0c0; background: #161d2a; }
+  .tab.active { color: #4ecdc4; background: #161d2a; border-color: #2a3040; border-bottom-color: #161d2a; }
+
+  /* Main Layout */
+  .sim-container { display: none; padding: 24px 30px; }
+  .sim-container.active { display: block; }
+
+  /* Controls Panel */
+  .controls { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 24px; padding: 20px; background: #111620; border-radius: 12px; border: 1px solid #1e2738; }
+  .control-group { flex: 1; min-width: 200px; }
+  .control-group label { display: block; font-size: 12px; color: #6b7b8d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .control-group .value { font-size: 20px; font-weight: 700; color: #4ecdc4; margin-bottom: 6px; }
+  .control-group input[type="range"] { width: 100%; -webkit-appearance: none; height: 6px; border-radius: 3px; background: #1e2738; outline: none; }
+  .control-group input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #4ecdc4; cursor: pointer; border: 2px solid #0a0e17; }
+
+  /* Canvas Area */
+  .canvas-wrapper { background: #0d1117; border-radius: 12px; border: 1px solid #1e2738; overflow: hidden; margin-bottom: 20px; }
+  canvas { display: block; width: 100%; }
+
+  /* Stats Bar */
+  .stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .stat-card { flex: 1; min-width: 140px; background: #111620; border-radius: 10px; padding: 16px; border: 1px solid #1e2738; }
+  .stat-card .stat-label { font-size: 11px; color: #6b7b8d; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .stat-good { color: #4ecdc4; }
+  .stat-warn { color: #f9ca24; }
+  .stat-bad { color: #ff6b6b; }
+
+  /* Buttons */
+  .btn-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 10px 24px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: #4ecdc4; color: #0a0e17; }
+  .btn-primary:hover { background: #3dbdb5; }
+  .btn-secondary { background: #1e2738; color: #c8d6e5; border: 1px solid #2a3040; }
+  .btn-secondary:hover { background: #2a3040; }
+  .btn-active { background: #4ecdc4; color: #0a0e17; }
+  .btn-danger { background: #ff6b6b; color: #0a0e17; }
+  .btn-danger:hover { background: #e05555; }
+
+  /* Legend */
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 16px; background: #111620; border-radius: 8px; margin-bottom: 16px; border: 1px solid #1e2738; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8899aa; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* Description */
+  .sim-desc { font-size: 14px; color: #6b7b8d; line-height: 1.6; margin-bottom: 16px; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; }
+
+  /* Toggle switch */
+  .toggle-wrap { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .toggle { position: relative; width: 48px; height: 26px; background: #1e2738; border-radius: 13px; cursor: pointer; transition: background 0.2s; }
+  .toggle.on { background: #4ecdc4; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: #c8d6e5; border-radius: 50%; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(22px); background: #0a0e17; }
+  .toggle-label { font-size: 13px; color: #8899aa; }
+
+  /* NAT Mapping Table (HTML) */
+  .nat-table-wrapper { background: #111620; border-radius: 12px; border: 1px solid #1e2738; padding: 16px 20px; margin-bottom: 20px; }
+  .nat-table-title { font-size: 14px; font-weight: 700; color: #a29bfe; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .nat-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .nat-table thead th { color: #6b7b8d; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 10px; border-bottom: 1px solid #1e2738; text-align: center; }
+  .nat-table thead th.arrow-col { width: 30px; color: #4a5568; font-size: 14px; }
+  .nat-table tbody td { padding: 10px 10px; text-align: center; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; border-bottom: 1px solid #1e273850; vertical-align: middle; }
+  .nat-table tbody tr { transition: background 0.3s; }
+  .nat-table tbody tr:hover { background: #1e273840; }
+  .nat-table tbody tr.nat-row-new { animation: natRowFlash 1.2s ease; }
+  @keyframes natRowFlash { 0% { background: #4ecdc430; } 100% { background: transparent; } }
+  .nat-table .cell-internal { color: #4ecdc4; font-weight: 600; }
+  .nat-table .cell-external { color: #f9ca24; font-weight: 600; }
+  .nat-table .cell-remote { color: #6c8cff; font-weight: 600; }
+  .nat-table .cell-arrow { color: #4a5568; font-size: 16px; }
+  .nat-table .cell-timeout { display: flex; align-items: center; gap: 8px; justify-content: center; }
+  .timeout-bar-bg { width: 80px; height: 8px; background: #1e2738; border-radius: 4px; overflow: hidden; }
+  .timeout-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+  .timeout-text { color: #8899aa; font-size: 11px; font-family: system-ui; min-width: 32px; text-align: left; }
+  .nat-empty-row td { color: #4a5568; font-style: italic; font-family: system-ui; padding: 20px; }
+
+  /* Scenario selector buttons */
+  .scenario-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .scenario-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #2a3040; background: #1e2738; color: #8899aa; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .scenario-btn:hover { border-color: #4ecdc4; color: #c8d6e5; }
+  .scenario-btn.active { background: #4ecdc4; color: #0a0e17; border-color: #4ecdc4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>NAT / SRT / LRS</span> — Interactive Simulation</h1>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="flow">NAT Packet Flow</div>
+  <div class="tab" data-tab="types">NAT Types</div>
+  <div class="tab" data-tab="srt">SRT Through NAT</div>
+  <div class="tab" data-tab="lrs">VOS 360 / LRS</div>
+</div>
+
+<!-- ==================== TAB 1: NAT PACKET FLOW ==================== -->
+<div class="sim-container active" id="sim-flow">
+  <div class="sim-desc">
+    <strong>NAT Packet Flow</strong> — Watch how a NAT router rewrites packet source addresses for outbound traffic, maintains a translation table, and blocks unsolicited inbound packets that have no matching entry. The translation table entries expire after a timeout unless refreshed by traffic.
+  </div>
+  <div class="controls">
+    <div class="control-group">
+      <label>Mapping Timeout</label>
+      <div class="value" id="flow-timeout-val">30s</div>
+      <input type="range" id="flow-timeout" min="10" max="60" value="30">
+    </div>
+    <div class="control-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="flow-pause">Pause</button>
+        <button class="btn btn-primary" id="flow-send-out">Send Outbound</button>
+        <button class="btn btn-secondary" id="flow-send-resp">Send Response</button>
+        <button class="btn btn-danger" id="flow-send-unsol">Send Unsolicited</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Auto Mode</label>
+      <div class="toggle-wrap">
+        <div class="toggle" id="flow-auto-toggle"></div>
+        <span class="toggle-label" id="flow-auto-label">Off</span>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Outbound packet</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Inbound response</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Blocked (unsolicited)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Keep-alive</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-flow" height="340"></canvas>
+  </div>
+  <div class="nat-table-wrapper">
+    <div class="nat-table-title">NAT Translation Table</div>
+    <table class="nat-table" id="flow-nat-table">
+      <thead>
+        <tr>
+          <th>Internal (Private)</th>
+          <th class="arrow-col">\u2192</th>
+          <th>External (NAT Public)</th>
+          <th class="arrow-col">\u2194</th>
+          <th>Remote Server</th>
+          <th>Timeout</th>
+        </tr>
+      </thead>
+      <tbody id="flow-nat-tbody">
+        <tr class="nat-empty-row" id="flow-nat-empty">
+          <td colspan="6">No active mappings &mdash; click <strong>Send Outbound</strong> to create one</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Outbound Packets</div><div class="stat-value stat-good" id="flow-s-out">0</div></div>
+    <div class="stat-card"><div class="stat-label">Inbound Responses</div><div class="stat-value stat-good" id="flow-s-in">0</div></div>
+    <div class="stat-card"><div class="stat-label">Blocked (No Mapping)</div><div class="stat-value stat-bad" id="flow-s-blocked">0</div></div>
+    <div class="stat-card"><div class="stat-label">Active Mappings</div><div class="stat-value stat-warn" id="flow-s-mappings">0</div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 2: NAT TYPES ==================== -->
+<div class="sim-container" id="sim-types">
+  <div class="sim-desc">
+    <strong>NAT Types</strong> — See how the 4 NAT types differ in what return traffic they permit through an existing mapping. After the internal device sends to Server A, watch which test packets from various external sources are allowed or blocked.
+  </div>
+  <div class="controls">
+    <div class="control-group" style="min-width: 420px;">
+      <label>NAT Type</label>
+      <div class="scenario-btns" id="nattype-btns">
+        <button class="scenario-btn active" data-type="full-cone">Full Cone</button>
+        <button class="scenario-btn" data-type="addr-restricted">Address-Restricted</button>
+        <button class="scenario-btn" data-type="port-restricted">Port-Restricted</button>
+        <button class="scenario-btn" data-type="symmetric">Symmetric</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="types-run">Run Test</button>
+        <button class="btn btn-secondary" id="types-reset">Reset</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Auto-Cycle</label>
+      <div class="toggle-wrap">
+        <div class="toggle" id="types-auto-toggle"></div>
+        <span class="toggle-label" id="types-auto-label">Off</span>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Initial outbound</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Test passed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Test blocked</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> Mapping rule</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-types" height="520"></canvas>
+  </div>
+  <div class="nat-table-wrapper" id="types-table-wrapper">
+    <div class="nat-table-title">NAT Mapping Table &amp; Filtering Rule</div>
+    <table class="nat-table" id="types-nat-table">
+      <thead>
+        <tr>
+          <th>Internal</th>
+          <th class="arrow-col">&rarr;</th>
+          <th>External (NAT)</th>
+          <th class="arrow-col">&harr;</th>
+          <th>Destination</th>
+          <th>Allows Return From</th>
+        </tr>
+      </thead>
+      <tbody id="types-nat-tbody">
+        <tr class="nat-empty-row"><td colspan="6">Run a test to see the mapping</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">NAT Type</div><div class="stat-value stat-good" id="types-s-name">Full Cone</div></div>
+    <div class="stat-card"><div class="stat-label">Rule</div><div class="stat-value" id="types-s-rule" style="font-size:13px;color:#a29bfe;">Any external host can send</div></div>
+    <div class="stat-card"><div class="stat-label">Tests Passed</div><div class="stat-value stat-good" id="types-s-pass">0</div></div>
+    <div class="stat-card"><div class="stat-label">Tests Blocked</div><div class="stat-value stat-bad" id="types-s-fail">0</div></div>
+    <div class="stat-card"><div class="stat-label">Traversal Difficulty</div><div class="stat-value stat-good" id="types-s-diff">Easy</div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 3: SRT THROUGH NAT ==================== -->
+<div class="sim-container" id="sim-srt">
+  <div class="sim-desc">
+    <strong>SRT Through NAT</strong> — See how SRT's connection modes (Caller/Listener and Rendezvous) interact with NAT. Choosing the right mode is critical: the Caller must be behind NAT so its outbound handshake creates the mapping that allows the Listener's response back in.
+  </div>
+  <div class="controls">
+    <div class="control-group" style="min-width: 520px;">
+      <label>Scenario</label>
+      <div class="scenario-btns" id="srt-scenario-btns">
+        <button class="scenario-btn active" data-sc="1">Caller behind NAT</button>
+        <button class="scenario-btn" data-sc="2">Wrong mode (fails)</button>
+        <button class="scenario-btn" data-sc="3">Port forwarding fix</button>
+        <button class="scenario-btn" data-sc="4">Rendezvous</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="srt-play">Play</button>
+        <button class="btn btn-secondary" id="srt-reset">Reset</button>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> SRT Handshake</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Connection established</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Blocked / dropped</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> NAT mapping created</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Port forwarding rule</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-srt" height="500"></canvas>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Connection Status</div><div class="stat-value" id="srt-s-status" style="color:#6b7b8d;">Idle</div></div>
+    <div class="stat-card"><div class="stat-label">NAT Mappings</div><div class="stat-value stat-warn" id="srt-s-mappings">A: 0  B: 0</div></div>
+    <div class="stat-card"><div class="stat-label">Packets Sent</div><div class="stat-value stat-good" id="srt-s-sent">0</div></div>
+    <div class="stat-card"><div class="stat-label">Packets Blocked</div><div class="stat-value stat-bad" id="srt-s-blocked">0</div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 4: VOS 360 / LRS ==================== -->
+<div class="sim-container" id="sim-lrs">
+  <div class="sim-desc">
+    <strong>VOS 360 / LRS (Live Routing Service)</strong> — See how SRT streams flow through the Harmonic VOS 360 pipeline. LRS VMs in Azure act as SRT relay nodes with two roles: <em>Cloud Source</em> (receives from encoders) and <em>Cloud Edge</em> (forwards to Ingest). By default, LRS is a <strong>Listener</strong> with a URL:port for external sources to connect to. However, LRS CS/CE can also be configured as <strong>Caller</strong> when needed.
+  </div>
+  <div class="controls">
+    <div class="control-group" style="min-width: 560px;">
+      <label>Scenario</label>
+      <div class="scenario-btns" id="lrs-scenario-btns">
+        <button class="scenario-btn active" data-sc="1">Express Route</button>
+        <button class="scenario-btn" data-sc="2">Public Internet + NAT</button>
+        <button class="scenario-btn" data-sc="3">Wrong mode (fails)</button>
+        <button class="scenario-btn" data-sc="4">Failover</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="lrs-pause">Pause</button>
+        <button class="btn btn-primary" id="lrs-play">Play</button>
+        <button class="btn btn-secondary" id="lrs-reset">Reset</button>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> SRT Handshake</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Connected / Video flowing</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Blocked / Failed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> NAT mapping created</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6c8cff"></div> Express Route (private)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Caller/Listener role</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-lrs" height="600"></canvas>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Pipeline Status</div><div class="stat-value" id="lrs-s-status" style="color:#6b7b8d;">Idle</div></div>
+    <div class="stat-card"><div class="stat-label">Active SRT Hops</div><div class="stat-value stat-good" id="lrs-s-hops">0 / 3</div></div>
+    <div class="stat-card"><div class="stat-label">Packets Sent</div><div class="stat-value stat-good" id="lrs-s-sent">0</div></div>
+    <div class="stat-card"><div class="stat-label">Packets Blocked</div><div class="stat-value stat-bad" id="lrs-s-blocked">0</div></div>
+  </div>
+</div>
+
+<script>
+// ===================== UTILITY =====================
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+function rr(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+// ===================== TAB SWITCHING =====================
+document.querySelectorAll('.tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.sim-container').forEach(function(s) { s.classList.remove('active'); });
+    tab.classList.add('active');
+    document.getElementById('sim-' + tab.dataset.tab).classList.add('active');
+    window.dispatchEvent(new Event('resize'));
+  });
+});
+
+// ===================== TAB 1: NAT PACKET FLOW =====================
+(function() {
+  var canvas = document.getElementById('canvas-flow');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 340;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Layout regions (fraction of W)
+  var PRIV_X = 0.12;   // center of private network zone
+  var NAT_X = 0.48;    // center of NAT router
+  var PUB_X = 0.85;    // center of public internet zone
+
+  // Internal devices
+  var devices = [
+    { ip: '192.168.1.10', port: 50001, y: 100 },
+    { ip: '192.168.1.11', port: 50002, y: 190 },
+  ];
+  var natPublicIP = '203.0.113.50';
+  var remoteServers = [
+    { ip: '52.1.2.3', port: 443, y: 100 },
+    { ip: '198.51.100.7', port: 8080, y: 190 },
+  ];
+  var nextExtPort = 40001;
+
+  // State
+  var mappings = []; // { intIP, intPort, extPort, remoteIP, remotePort, timeout, maxTimeout, id }
+  var packets = [];  // { x, y, targetX, targetY, startX, startY, progress, type, label, sublabel, color, done, result, id }
+  var stats = { out: 0, inResp: 0, blocked: 0 };
+  var paused = false;
+  var autoMode = false;
+  var autoTimer = 0;
+  var mappingIdCounter = 0;
+  var flashMessages = []; // { text, x, y, color, birth, duration }
+
+  var sTimeout = document.getElementById('flow-timeout');
+  sTimeout.addEventListener('input', function() {
+    document.getElementById('flow-timeout-val').textContent = sTimeout.value + 's';
+  });
+
+  // Pause/Resume
+  document.getElementById('flow-pause').addEventListener('click', function() {
+    paused = !paused;
+    this.textContent = paused ? 'Resume' : 'Pause';
+  });
+
+  // Toggle
+  var autoToggle = document.getElementById('flow-auto-toggle');
+  autoToggle.addEventListener('click', function() {
+    autoMode = !autoMode;
+    autoToggle.classList.toggle('on', autoMode);
+    document.getElementById('flow-auto-label').textContent = autoMode ? 'On' : 'Off';
+  });
+
+  function getTimeout() { return +sTimeout.value; }
+
+  function findMapping(intIP, intPort, remoteIP, remotePort) {
+    for (var i = 0; i < mappings.length; i++) {
+      var m = mappings[i];
+      if (m.intIP === intIP && m.intPort === intPort && m.remoteIP === remoteIP && m.remotePort === remotePort) return m;
+    }
+    return null;
+  }
+
+  function findMappingByExt(extPort, remoteIP, remotePort) {
+    for (var i = 0; i < mappings.length; i++) {
+      var m = mappings[i];
+      if (m.extPort === extPort && m.remoteIP === remoteIP && m.remotePort === remotePort) return m;
+    }
+    return null;
+  }
+
+  function addFlash(text, x, y, color) {
+    flashMessages.push({ text: text, x: x, y: y, color: color, birth: performance.now(), duration: 2000 });
+  }
+
+  // --- Outbound ---
+  document.getElementById('flow-send-out').addEventListener('click', function() { sendOutbound(); });
+  function sendOutbound() {
+    var dev = devices[Math.floor(Math.random() * devices.length)];
+    var srv = remoteServers[Math.floor(Math.random() * remoteServers.length)];
+    var existing = findMapping(dev.ip, dev.port, srv.ip, srv.port);
+    var extPort = existing ? existing.extPort : nextExtPort++;
+    if (!existing) {
+      mappingIdCounter++;
+      mappings.push({
+        intIP: dev.ip, intPort: dev.port, extPort: extPort,
+        remoteIP: srv.ip, remotePort: srv.port,
+        timeout: getTimeout(), maxTimeout: getTimeout(), id: mappingIdCounter
+      });
+    } else {
+      existing.timeout = getTimeout();
+      existing.maxTimeout = getTimeout();
+    }
+    stats.out++;
+    // Packet: device -> NAT (with private src) then NAT -> server (with public src)
+    var pktId = Math.random();
+    packets.push({
+      startX: PRIV_X * W, startY: dev.y, targetX: NAT_X * W - 40, targetY: dev.y,
+      x: PRIV_X * W, y: dev.y, progress: 0, type: 'outbound-leg1',
+      label: dev.ip + ':' + dev.port, sublabel: 'src (private)',
+      color: '#4ecdc4', done: false, id: pktId,
+      meta: { dev: dev, srv: srv, extPort: extPort }
+    });
+  }
+
+  // --- Send Response ---
+  document.getElementById('flow-send-resp').addEventListener('click', function() { sendResponse(); });
+  function sendResponse() {
+    if (mappings.length === 0) {
+      addFlash('No mappings to respond to!', NAT_X * W, 280, '#f9ca24');
+      return;
+    }
+    var m = mappings[Math.floor(Math.random() * mappings.length)];
+    m.timeout = m.maxTimeout; // refresh
+    stats.inResp++;
+    var srv = null;
+    for (var i = 0; i < remoteServers.length; i++) {
+      if (remoteServers[i].ip === m.remoteIP) { srv = remoteServers[i]; break; }
+    }
+    if (!srv) srv = remoteServers[0];
+    var dev = null;
+    for (var i = 0; i < devices.length; i++) {
+      if (devices[i].ip === m.intIP) { dev = devices[i]; break; }
+    }
+    if (!dev) dev = devices[0];
+    var pktId = Math.random();
+    packets.push({
+      startX: PUB_X * W, startY: srv.y, targetX: NAT_X * W + 40, targetY: srv.y,
+      x: PUB_X * W, y: srv.y, progress: 0, type: 'response-leg1',
+      label: srv.ip + ':' + srv.port, sublabel: 'response',
+      color: '#00b894', done: false, id: pktId,
+      meta: { dev: dev, srv: srv, extPort: m.extPort, mapping: m }
+    });
+  }
+
+  // --- Send Unsolicited ---
+  document.getElementById('flow-send-unsol').addEventListener('click', function() { sendUnsolicited(); });
+  function sendUnsolicited() {
+    var srv = remoteServers[Math.floor(Math.random() * remoteServers.length)];
+    stats.blocked++;
+    var pktId = Math.random();
+    packets.push({
+      startX: PUB_X * W, startY: 145, targetX: NAT_X * W + 40, targetY: 145,
+      x: PUB_X * W, y: 145, progress: 0, type: 'unsolicited',
+      label: srv.ip + ':9999', sublabel: 'unsolicited',
+      color: '#ff6b6b', done: false, id: pktId,
+      meta: { srv: srv }
+    });
+  }
+
+  var FLIGHT_MS = 4000;
+
+  var prevTime = performance.now();
+  function update(now) {
+    if (paused) { prevTime = now; draw(now); updateFlowStats(); requestAnimationFrame(update); return; }
+    var dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+    var timeoutVal = getTimeout();
+
+    // Tick mapping timeouts (accelerated: 1 real second = 2 sim seconds)
+    var simDt = (dt / 1000) * 2;
+    for (var i = mappings.length - 1; i >= 0; i--) {
+      mappings[i].timeout -= simDt;
+      if (mappings[i].timeout <= 0) {
+        mappings.splice(i, 1);
+      }
+    }
+
+    // Auto mode
+    if (autoMode) {
+      autoTimer += dt;
+      if (autoTimer > 5500) {
+        autoTimer = 0;
+        var r = Math.random();
+        if (r < 0.5) sendOutbound();
+        else if (r < 0.8) sendResponse();
+        else sendUnsolicited();
+      }
+    }
+
+    // Update packets
+    for (var i = packets.length - 1; i >= 0; i--) {
+      var pkt = packets[i];
+      pkt.progress += dt / FLIGHT_MS;
+      var t = easeInOut(clamp(pkt.progress, 0, 1));
+      pkt.x = lerp(pkt.startX, pkt.targetX, t);
+      pkt.y = lerp(pkt.startY, pkt.targetY, t);
+
+      if (pkt.progress >= 1 && !pkt.done) {
+        pkt.done = true;
+        if (pkt.type === 'outbound-leg1') {
+          // Spawn leg2: NAT -> server (rewritten src)
+          var m = pkt.meta;
+          packets.push({
+            startX: NAT_X * W + 40, startY: m.dev.y, targetX: PUB_X * W, targetY: m.srv.y,
+            x: NAT_X * W + 40, y: m.dev.y, progress: 0, type: 'outbound-leg2',
+            label: natPublicIP + ':' + m.extPort, sublabel: 'src rewritten!',
+            color: '#4ecdc4', done: false, id: Math.random(), meta: m
+          });
+          addFlash('SRC rewritten', NAT_X * W, m.dev.y - 20, '#4ecdc4');
+        } else if (pkt.type === 'response-leg1') {
+          // Spawn leg2: NAT -> internal device (dst rewritten)
+          var m = pkt.meta;
+          packets.push({
+            startX: NAT_X * W - 40, startY: m.srv.y, targetX: PRIV_X * W, targetY: m.dev.y,
+            x: NAT_X * W - 40, y: m.srv.y, progress: 0, type: 'response-leg2',
+            label: m.dev.ip + ':' + m.dev.port, sublabel: 'dst restored',
+            color: '#00b894', done: false, id: Math.random(), meta: m
+          });
+          addFlash('Table lookup \u2713', NAT_X * W, m.srv.y - 20, '#00b894');
+        } else if (pkt.type === 'unsolicited') {
+          addFlash('NO MAPPING \u2014 DROPPED!', NAT_X * W, 125, '#ff6b6b');
+        }
+      }
+
+      // Remove finished leg2 and unsolicited packets after fade
+      if (pkt.done && (pkt.type === 'outbound-leg2' || pkt.type === 'response-leg2' || pkt.type === 'unsolicited')) {
+        pkt.alpha = (pkt.alpha === undefined ? 1 : pkt.alpha) - dt * 0.001;
+        if (pkt.alpha <= 0) packets.splice(i, 1);
+      }
+      if (pkt.done && (pkt.type === 'outbound-leg1' || pkt.type === 'response-leg1')) {
+        packets.splice(i, 1);
+      }
+    }
+
+    // Remove old flashes
+    for (var i = flashMessages.length - 1; i >= 0; i--) {
+      if (now - flashMessages[i].birth > flashMessages[i].duration) flashMessages.splice(i, 1);
+    }
+
+    draw(now);
+    updateFlowStats();
+    requestAnimationFrame(update);
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Background zones
+    var zones = [
+      { x1: 0, x2: 0.28, label: 'PRIVATE NETWORK', color: '#0d1a28' },
+      { x1: 0.30, x2: 0.66, label: 'NAT ROUTER (' + natPublicIP + ')', color: '#1a160d' },
+      { x1: 0.68, x2: 1, label: 'PUBLIC INTERNET', color: '#0d1828' },
+    ];
+    zones.forEach(function(z) {
+      ctx.fillStyle = z.color;
+      ctx.fillRect(z.x1 * W, 0, (z.x2 - z.x1) * W, H);
+      ctx.fillStyle = '#4a5568'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(z.label, ((z.x1 + z.x2) / 2) * W, 22);
+    });
+
+    // Dashed dividers
+    [0.29, 0.67].forEach(function(x) {
+      ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(x * W, 0); ctx.lineTo(x * W, H); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Draw devices
+    devices.forEach(function(dev) {
+      drawBox(ctx, PRIV_X * W - 55, dev.y - 20, 110, 40, '#1e2738', '#4ecdc4', dev.ip, ':' + dev.port);
+    });
+
+    // Draw NAT router
+    drawBox(ctx, NAT_X * W - 50, 55, 100, 50, '#2a2000', '#f9ca24', 'NAT', natPublicIP);
+    // Arrows
+    ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(PRIV_X * W + 60, 80); ctx.lineTo(NAT_X * W - 55, 80); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(NAT_X * W + 55, 80); ctx.lineTo(PUB_X * W - 60, 80); ctx.stroke();
+    // Arrowheads
+    drawArrow(ctx, NAT_X * W - 55, 80, 'right', '#2a3040');
+    drawArrow(ctx, PUB_X * W - 60, 80, 'right', '#2a3040');
+
+    // Draw remote servers
+    remoteServers.forEach(function(srv) {
+      drawBox(ctx, PUB_X * W - 55, srv.y - 20, 110, 40, '#1e2738', '#6c8cff', srv.ip, ':' + srv.port);
+    });
+
+    // How-it-works annotation area (bottom of canvas)
+    ctx.fillStyle = '#6b7b8d'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Outbound: private src \u2192 NAT rewrites to public src \u2192 server', W * 0.5, 260);
+    ctx.fillText('Response: server \u2192 NAT looks up table \u2192 restores private dst', W * 0.5, 280);
+    ctx.fillStyle = '#ff6b6b80';
+    ctx.fillText('Unsolicited: server \u2192 NAT has no mapping \u2192 DROPPED', W * 0.5, 300);
+
+    // Draw packets
+    packets.forEach(function(pkt) {
+      var alpha = pkt.alpha !== undefined ? pkt.alpha : 1;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = pkt.color;
+      rr(ctx, pkt.x - 16, pkt.y - 12, 32, 24, 5);
+      ctx.fill();
+      ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('PKT', pkt.x, pkt.y + 3);
+      // Label above
+      ctx.fillStyle = pkt.color; ctx.font = '10px system-ui';
+      ctx.fillText(pkt.label, pkt.x, pkt.y - 18);
+      if (pkt.sublabel) {
+        ctx.fillStyle = '#8899aa'; ctx.font = 'italic 9px system-ui';
+        ctx.fillText(pkt.sublabel, pkt.x, pkt.y - 30);
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // Flash messages
+    flashMessages.forEach(function(f) {
+      var age = now - f.birth;
+      var alpha = age < 200 ? age / 200 : age > f.duration - 500 ? (f.duration - age) / 500 : 1;
+      ctx.globalAlpha = clamp(alpha, 0, 1);
+      ctx.fillStyle = f.color; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(f.text, f.x, f.y - (age * 0.015));
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function drawBox(ctx, x, y, w, h, bg, borderColor, line1, line2) {
+    ctx.fillStyle = bg;
+    rr(ctx, x, y, w, h, 6); ctx.fill();
+    ctx.strokeStyle = borderColor; ctx.lineWidth = 1.5;
+    rr(ctx, x, y, w, h, 6); ctx.stroke();
+    ctx.fillStyle = '#c8d6e5'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(line1, x + w/2, y + h/2 - 2);
+    if (line2) {
+      ctx.fillStyle = '#6b7b8d'; ctx.font = '10px system-ui';
+      ctx.fillText(line2, x + w/2, y + h/2 + 12);
+    }
+  }
+
+  function drawArrow(ctx, x, y, dir, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (dir === 'right') {
+      ctx.moveTo(x, y); ctx.lineTo(x - 8, y - 5); ctx.lineTo(x - 8, y + 5);
+    } else {
+      ctx.moveTo(x, y); ctx.lineTo(x + 8, y - 5); ctx.lineTo(x + 8, y + 5);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Track which mapping IDs we've already rendered (for new-row animation)
+  var renderedMappingIds = {};
+
+  function updateFlowStats() {
+    document.getElementById('flow-s-out').textContent = stats.out;
+    document.getElementById('flow-s-in').textContent = stats.inResp;
+    document.getElementById('flow-s-blocked').textContent = stats.blocked;
+    document.getElementById('flow-s-mappings').textContent = mappings.length;
+
+    // Render HTML mapping table
+    var tbody = document.getElementById('flow-nat-tbody');
+    var emptyRow = document.getElementById('flow-nat-empty');
+    if (mappings.length === 0) {
+      if (!emptyRow) {
+        tbody.innerHTML = '<tr class="nat-empty-row" id="flow-nat-empty"><td colspan="6">No active mappings \u2014 click <strong>Send Outbound</strong> to create one</td></tr>';
+      }
+      renderedMappingIds = {};
+      return;
+    }
+    var html = '';
+    var currentIds = {};
+    mappings.forEach(function(m) {
+      currentIds[m.id] = true;
+      var frac = clamp(m.timeout / m.maxTimeout, 0, 1);
+      var barColor = frac > 0.5 ? '#4ecdc4' : frac > 0.2 ? '#f9ca24' : '#ff6b6b';
+      var isNew = !renderedMappingIds[m.id];
+      html += '<tr' + (isNew ? ' class="nat-row-new"' : '') + '>'
+        + '<td class="cell-internal">' + m.intIP + ':' + m.intPort + '</td>'
+        + '<td class="cell-arrow">\u2192</td>'
+        + '<td class="cell-external">' + natPublicIP + ':' + m.extPort + '</td>'
+        + '<td class="cell-arrow">\u2194</td>'
+        + '<td class="cell-remote">' + m.remoteIP + ':' + m.remotePort + '</td>'
+        + '<td><div class="cell-timeout">'
+        + '<div class="timeout-bar-bg"><div class="timeout-bar-fill" style="width:' + (frac * 100) + '%;background:' + barColor + '"></div></div>'
+        + '<span class="timeout-text">' + Math.max(0, m.timeout).toFixed(1) + 's</span>'
+        + '</div></td>'
+        + '</tr>';
+    });
+    tbody.innerHTML = html;
+    renderedMappingIds = currentIds;
+  }
+
+  requestAnimationFrame(update);
+})();
+
+// ===================== TAB 2: NAT TYPES =====================
+(function() {
+  var canvas = document.getElementById('canvas-types');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 520;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var currentType = 'full-cone';
+  var testPhase = -1; // -1 = idle, 0 = initial send, 1-4 = tests
+  var testTimer = 0;
+  var testResults = []; // { label, pass, desc }
+  var animPackets = []; // { startX, startY, targetX, targetY, progress, color, label, pass }
+  var stats = { pass: 0, fail: 0 };
+  var autoMode = false;
+  var autoTimer = 0;
+  var autoCycleIdx = 0;
+
+  var typeInfo = {
+    'full-cone': {
+      name: 'Full Cone',
+      rule: 'Any external host can send to the mapped port',
+      difficulty: 'Easy',
+      diffColor: 'stat-good',
+      extPortFixed: true,
+      tests: [
+        { from: 'Server A:443', pass: true, desc: 'Same host, same port' },
+        { from: 'Server A:8080', pass: true, desc: 'Same host, diff port' },
+        { from: 'Server B:443', pass: true, desc: 'Different host' },
+        { from: 'Server B:9999', pass: true, desc: 'Different host, diff port' },
+      ]
+    },
+    'addr-restricted': {
+      name: 'Address-Restricted',
+      rule: 'Only the contacted IP can send back (any port)',
+      difficulty: 'Medium',
+      diffColor: 'stat-warn',
+      extPortFixed: true,
+      tests: [
+        { from: 'Server A:443', pass: true, desc: 'Same host, same port' },
+        { from: 'Server A:8080', pass: true, desc: 'Same host, diff port' },
+        { from: 'Server B:443', pass: false, desc: 'Different host \u2014 BLOCKED' },
+        { from: 'Server B:9999', pass: false, desc: 'Different host, diff port \u2014 BLOCKED' },
+      ]
+    },
+    'port-restricted': {
+      name: 'Port-Restricted',
+      rule: 'Only the exact contacted IP:port can send back',
+      difficulty: 'Hard',
+      diffColor: 'stat-bad',
+      extPortFixed: true,
+      tests: [
+        { from: 'Server A:443', pass: true, desc: 'Same host, same port' },
+        { from: 'Server A:8080', pass: false, desc: 'Same host, diff port \u2014 BLOCKED' },
+        { from: 'Server B:443', pass: false, desc: 'Different host \u2014 BLOCKED' },
+        { from: 'Server B:9999', pass: false, desc: 'Different host, diff port \u2014 BLOCKED' },
+      ]
+    },
+    'symmetric': {
+      name: 'Symmetric',
+      rule: 'Only exact contacted IP:port; different ext port per dest',
+      difficulty: 'Very Hard',
+      diffColor: 'stat-bad',
+      extPortFixed: false,
+      tests: [
+        { from: 'Server A:443', pass: true, desc: 'Same host, same port' },
+        { from: 'Server A:8080', pass: false, desc: 'Same host, diff port \u2014 BLOCKED' },
+        { from: 'Server B:443', pass: false, desc: 'Different host (diff ext port!) \u2014 BLOCKED' },
+        { from: 'Server B:9999', pass: false, desc: 'Different host, diff port \u2014 BLOCKED' },
+      ]
+    }
+  };
+
+  // NAT type buttons
+  document.querySelectorAll('#nattype-btns .scenario-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#nattype-btns .scenario-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentType = btn.dataset.type;
+      resetTest();
+      updateTypesInfo();
+    });
+  });
+
+  var autoToggle = document.getElementById('types-auto-toggle');
+  autoToggle.addEventListener('click', function() {
+    autoMode = !autoMode;
+    autoToggle.classList.toggle('on', autoMode);
+    document.getElementById('types-auto-label').textContent = autoMode ? 'On' : 'Off';
+  });
+
+  document.getElementById('types-run').addEventListener('click', function() { startTest(); });
+  document.getElementById('types-reset').addEventListener('click', function() { resetTest(); });
+
+  function resetTest() {
+    testPhase = -1;
+    testTimer = 0;
+    testResults = [];
+    animPackets = [];
+    stats = { pass: 0, fail: 0 };
+    updateTypesStats();
+  }
+
+  function startTest() {
+    resetTest();
+    testPhase = 0;
+    testTimer = 0;
+  }
+
+  function updateTypesInfo() {
+    var info = typeInfo[currentType];
+    document.getElementById('types-s-name').textContent = info.name;
+    document.getElementById('types-s-rule').textContent = info.rule;
+    document.getElementById('types-s-diff').textContent = info.difficulty;
+    document.getElementById('types-s-diff').className = 'stat-value ' + info.diffColor;
+  }
+  updateTypesInfo();
+
+  // Layout
+  var DEV_X = 0.12;
+  var RNAT_X = 0.42;
+  var SRV_X_BASE = 0.75;
+  var natPub = '203.0.113.50';
+  var servers = [
+    { label: 'Server A', ip: '52.1.2.3', port: 443, y: 100 },
+    { label: 'Server A', ip: '52.1.2.3', port: 8080, y: 175 },
+    { label: 'Server B', ip: '198.51.100.7', port: 443, y: 270 },
+    { label: 'Server B', ip: '198.51.100.7', port: 9999, y: 345 },
+  ];
+
+  var PHASE_DURATION = 3500;
+
+  var prevTime = performance.now();
+  function update(now) {
+    var dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+
+    // Auto-cycle
+    if (autoMode) {
+      autoTimer += dt;
+      if (testPhase === -1 && autoTimer > 3000) {
+        var types = ['full-cone', 'addr-restricted', 'port-restricted', 'symmetric'];
+        currentType = types[autoCycleIdx % types.length];
+        document.querySelectorAll('#nattype-btns .scenario-btn').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.type === currentType);
+        });
+        updateTypesInfo();
+        autoCycleIdx++;
+        startTest();
+        autoTimer = 0;
+      }
+      // Restart after complete
+      if (testPhase > 4 && autoTimer > 4000) {
+        testPhase = -1;
+        autoTimer = 0;
+      }
+    }
+
+    // Phase progression
+    if (testPhase >= 0) {
+      testTimer += dt;
+      if (testTimer > PHASE_DURATION && testPhase <= 4) {
+        var info = typeInfo[currentType];
+        if (testPhase === 0) {
+          // Initial outbound - always succeeds
+          animPackets.push({
+            startX: DEV_X * W + 50, startY: 130, targetX: SRV_X_BASE * W - 40, targetY: servers[0].y,
+            progress: 0, color: '#4ecdc4', label: 'Initial \u2192 Server A:443', pass: true
+          });
+        } else {
+          // Test phases 1-4
+          var testIdx = testPhase - 1;
+          var test = info.tests[testIdx];
+          var srv = servers[testIdx];
+          animPackets.push({
+            startX: SRV_X_BASE * W - 40, startY: srv.y, targetX: RNAT_X * W + 50, targetY: srv.y,
+            progress: 0, color: test.pass ? '#00b894' : '#ff6b6b',
+            label: test.from + ' \u2192', pass: test.pass
+          });
+          testResults.push({ label: test.from, pass: test.pass, desc: test.desc });
+          if (test.pass) stats.pass++; else stats.fail++;
+        }
+        testPhase++;
+        testTimer = 0;
+      }
+    }
+
+    // Animate packets
+    for (var i = animPackets.length - 1; i >= 0; i--) {
+      var pkt = animPackets[i];
+      pkt.progress += dt / 3000;
+      if (pkt.progress > 3.0) { animPackets.splice(i, 1); continue; }
+      if (!pkt.pass && pkt.progress > 0.75) {
+        // Blocked - stop and flash
+        pkt.progress = Math.min(pkt.progress, 0.78);
+      }
+    }
+
+    draw(now);
+    updateTypesStats();
+    requestAnimationFrame(update);
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    var info = typeInfo[currentType];
+
+    // Zone labels
+    ctx.fillStyle = '#4a5568'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('INTERNAL', DEV_X * W, 30);
+    ctx.fillText('NAT ROUTER', RNAT_X * W, 30);
+    ctx.fillText('EXTERNAL HOSTS', SRV_X_BASE * W, 30);
+
+    // Dividers
+    [0.28, 0.58].forEach(function(x) {
+      ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(x * W, 40); ctx.lineTo(x * W, 400); ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // Internal device
+    drawBox2(ctx, DEV_X * W - 50, 110, 100, 50, '#1e2738', '#4ecdc4', '192.168.1.10', ':50001');
+
+    // NAT Router with mapping rule
+    drawBox2(ctx, RNAT_X * W - 65, 70, 130, 40, '#2a2000', '#f9ca24', 'NAT Router', '');
+
+    // Mapping table drawn on canvas below NAT router
+    var tblX = RNAT_X * W - 120, tblY = 120, tblW = 240, tblRowH = 22;
+    var tblRows = [];
+    if (testPhase >= 1 || testResults.length > 0) {
+      // Mapping was created by the initial outbound
+      tblRows.push({ left: '192.168.1.10:50001', right: info.extPortFixed ? natPub + ':40001' : natPub + ':40001*' });
+      if (!info.extPortFixed && testPhase > 1) {
+        tblRows.push({ left: '192.168.1.10:50001', right: natPub + ':40002 (diff dest)' });
+      }
+    }
+    var tblH = 24 + tblRows.length * tblRowH + (tblRows.length === 0 ? 24 : 8);
+    // Table background
+    ctx.fillStyle = '#111620';
+    rr(ctx, tblX, tblY, tblW, tblH, 6); ctx.fill();
+    ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+    rr(ctx, tblX, tblY, tblW, tblH, 6); ctx.stroke();
+    // Title
+    ctx.fillStyle = '#a29bfe'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('MAPPING TABLE', RNAT_X * W, tblY + 14);
+    ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(tblX + 6, tblY + 20); ctx.lineTo(tblX + tblW - 6, tblY + 20); ctx.stroke();
+    if (tblRows.length === 0) {
+      ctx.fillStyle = '#4a5568'; ctx.font = 'italic 10px system-ui';
+      ctx.fillText('(empty)', RNAT_X * W, tblY + 38);
+    } else {
+      tblRows.forEach(function(row, idx) {
+        var ry = tblY + 34 + idx * tblRowH;
+        ctx.font = '10px monospace'; ctx.textAlign = 'right';
+        ctx.fillStyle = '#4ecdc4';
+        ctx.fillText(row.left, RNAT_X * W - 6, ry);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#6b7b8d';
+        ctx.fillText('\u2192', RNAT_X * W, ry);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f9ca24';
+        ctx.fillText(row.right, RNAT_X * W + 6, ry);
+      });
+    }
+    // Rule text below table
+    ctx.fillStyle = '#6b7b8d'; ctx.font = 'italic 11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Rule: ' + info.rule, RNAT_X * W, tblY + tblH + 16);
+
+    // External servers
+    servers.forEach(function(srv, idx) {
+      var borderColor = '#6c8cff';
+      drawBox2(ctx, SRV_X_BASE * W - 50, srv.y - 20, 100, 40, '#1e2738', borderColor,
+        srv.label, srv.ip + ':' + srv.port);
+    });
+
+    // Animated packets
+    animPackets.forEach(function(pkt) {
+      var t = easeInOut(clamp(pkt.progress, 0, 1));
+      var px = lerp(pkt.startX, pkt.targetX, t);
+      var py = lerp(pkt.startY, pkt.targetY, t);
+      var alpha = pkt.progress > 2.0 ? Math.max(0, 1 - (pkt.progress - 2.0)) : 1;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = pkt.color;
+      rr(ctx, px - 14, py - 10, 28, 20, 4); ctx.fill();
+      ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('PKT', px, py + 3);
+
+      // Pass/fail indicator
+      if (pkt.progress > 0.7) {
+        ctx.font = 'bold 16px system-ui';
+        if (pkt.pass) {
+          ctx.fillStyle = '#00b894';
+          ctx.fillText('\u2713', px + 22, py + 5);
+        } else {
+          ctx.fillStyle = '#ff6b6b';
+          ctx.fillText('\u2716', px + 22, py + 5);
+          // "BLOCKED" flash
+          ctx.font = 'bold 12px system-ui';
+          var flashAlpha = Math.abs(Math.sin(now * 0.005));
+          ctx.globalAlpha = alpha * flashAlpha;
+          ctx.fillText('BLOCKED', px, py - 18);
+          ctx.globalAlpha = alpha;
+        }
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // Test results panel at bottom
+    if (testResults.length > 0) {
+      var panelY = 420;
+      ctx.fillStyle = '#111620';
+      ctx.fillRect(W * 0.05, panelY - 5, W * 0.9, 90);
+      ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+      ctx.strokeRect(W * 0.05, panelY - 5, W * 0.9, 90);
+      ctx.fillStyle = '#6b7b8d'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText('Test Results (' + info.name + '):', W * 0.08, panelY + 12);
+
+      testResults.forEach(function(r, i) {
+        var rx = W * 0.08 + (i % 2) * (W * 0.44);
+        var ry = panelY + 30 + Math.floor(i / 2) * 22;
+        ctx.fillStyle = r.pass ? '#00b894' : '#ff6b6b';
+        ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+        ctx.fillText(r.pass ? '\u2713' : '\u2716', rx, ry);
+        ctx.fillStyle = '#c8d6e5'; ctx.font = '12px system-ui';
+        ctx.fillText(r.desc, rx + 16, ry);
+      });
+    }
+
+    // Idle instruction
+    if (testPhase === -1) {
+      ctx.fillStyle = '#4a5568'; ctx.font = 'italic 14px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Select a NAT type and click "Run Test" to see which packets are allowed through', W * 0.5, H * 0.85);
+    }
+  }
+
+  function drawBox2(ctx, x, y, w, h, bg, borderColor, line1, line2) {
+    ctx.fillStyle = bg;
+    rr(ctx, x, y, w, h, 6); ctx.fill();
+    ctx.strokeStyle = borderColor; ctx.lineWidth = 1.5;
+    rr(ctx, x, y, w, h, 6); ctx.stroke();
+    ctx.fillStyle = '#c8d6e5'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(line1, x + w/2, y + h/2 + (line2 ? -4 : 4));
+    if (line2) {
+      ctx.fillStyle = '#6b7b8d'; ctx.font = '9px system-ui';
+      ctx.fillText(line2, x + w/2, y + h/2 + 10);
+    }
+  }
+
+  function updateTypesStats() {
+    document.getElementById('types-s-pass').textContent = stats.pass;
+    document.getElementById('types-s-fail').textContent = stats.fail;
+
+    // Update HTML mapping table
+    var tbody = document.getElementById('types-nat-tbody');
+    var info = typeInfo[currentType];
+    if (testPhase < 1 && testResults.length === 0) {
+      tbody.innerHTML = '<tr class="nat-empty-row"><td colspan="6">Run a test to see the mapping</td></tr>';
+      return;
+    }
+    var allowsFrom;
+    if (currentType === 'full-cone') allowsFrom = '<span style="color:#00b894">Any host, any port</span>';
+    else if (currentType === 'addr-restricted') allowsFrom = '<span style="color:#f9ca24">52.1.2.3 (any port)</span>';
+    else if (currentType === 'port-restricted') allowsFrom = '<span style="color:#ff6b6b">52.1.2.3:443 only</span>';
+    else allowsFrom = '<span style="color:#ff6b6b">52.1.2.3:443 only (unique ext port per dest)</span>';
+
+    var rows = '<tr class="nat-row-new">'
+      + '<td class="cell-internal">192.168.1.10:50001</td>'
+      + '<td class="cell-arrow">\u2192</td>'
+      + '<td class="cell-external">' + natPub + ':40001</td>'
+      + '<td class="cell-arrow">\u2194</td>'
+      + '<td class="cell-remote">52.1.2.3:443</td>'
+      + '<td>' + allowsFrom + '</td>'
+      + '</tr>';
+    if (!info.extPortFixed) {
+      rows += '<tr>'
+        + '<td class="cell-internal">192.168.1.10:50001</td>'
+        + '<td class="cell-arrow">\u2192</td>'
+        + '<td class="cell-external">' + natPub + ':<strong>40002</strong></td>'
+        + '<td class="cell-arrow">\u2194</td>'
+        + '<td class="cell-remote">198.51.100.7:*</td>'
+        + '<td><span style="color:#ff6b6b">Different ext port per destination</span></td>'
+        + '</tr>';
+    }
+    tbody.innerHTML = rows;
+  }
+
+  requestAnimationFrame(update);
+})();
+
+// ===================== TAB 3: SRT THROUGH NAT =====================
+(function() {
+  var canvas = document.getElementById('canvas-srt');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 500;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var currentScenario = 1;
+  var phase = -1; // -1 = idle
+  var phaseTimer = 0;
+  var animPackets = [];
+  var events = []; // { text, y, color, time }
+  var stats = { sent: 0, blocked: 0 };
+  var connectionStatus = 'Idle';
+  var natMappingsA = 0, natMappingsB = 0;
+
+  // Scenario buttons
+  document.querySelectorAll('#srt-scenario-btns .scenario-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#srt-scenario-btns .scenario-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentScenario = +btn.dataset.sc;
+      resetSrt();
+    });
+  });
+
+  document.getElementById('srt-play').addEventListener('click', function() { playSrt(); });
+  document.getElementById('srt-reset').addEventListener('click', function() { resetSrt(); });
+
+  function resetSrt() {
+    phase = -1; phaseTimer = 0; animPackets = []; events = [];
+    stats = { sent: 0, blocked: 0 };
+    connectionStatus = 'Idle';
+    natMappingsA = 0; natMappingsB = 0;
+    updateSrtStats();
+  }
+
+  function playSrt() {
+    resetSrt();
+    phase = 0;
+    phaseTimer = 0;
+    connectionStatus = 'Establishing...';
+  }
+
+  // Layout
+  var SIDE_A_X = 0.12;
+  var NAT_A_X = 0.30;
+  var MID_X = 0.50;
+  var NAT_B_X = 0.70;
+  var SIDE_B_X = 0.88;
+  var MAIN_Y = 160;
+  var ANIM_SPEED = 1200;
+
+  var scenarios = {
+    1: {
+      title: 'Caller \u2192 Listener (Works)',
+      subtitle: 'Side A (Caller, behind NAT) connects to Side B (Listener, public IP)',
+      aLabel: 'Side A\n(Caller)',
+      bLabel: 'Side B\n(Listener)',
+      aNat: true, bNat: false,
+      portFwd: false,
+      phases: [
+        { desc: 'A sends SRT handshake outbound \u2192', from: 'a', to: 'b', pass: true, createMapping: 'a' },
+        { desc: 'A\'s NAT creates mapping for return traffic', event: true },
+        { desc: 'B responds to A\'s mapped external address \u2190', from: 'b', to: 'a', pass: true, useMapping: 'a' },
+        { desc: 'Response matches A\'s NAT mapping \u2014 forwarded to A', event: true },
+        { desc: 'Connection established!', connected: true },
+      ]
+    },
+    2: {
+      title: 'Wrong Mode (Fails)',
+      subtitle: 'Side A (Caller, public) sends to Side B (Listener, behind NAT)',
+      aLabel: 'Side A\n(Caller)',
+      bLabel: 'Side B\n(Listener)',
+      aNat: false, bNat: true,
+      portFwd: false,
+      phases: [
+        { desc: 'A sends SRT handshake to B \u2192', from: 'a', to: 'b', pass: false, blocked: 'b' },
+        { desc: 'B\'s NAT has NO mapping \u2014 DROPPED!', event: true, fail: true },
+        { desc: 'A retries... still blocked', from: 'a', to: 'b', pass: false, blocked: 'b' },
+        { desc: 'Connection FAILED \u2014 B\'s NAT blocks all unsolicited inbound', failed: true },
+      ]
+    },
+    3: {
+      title: 'Port Forwarding Fix',
+      subtitle: 'Same as scenario 2 but B\'s NAT has port forwarding configured',
+      aLabel: 'Side A\n(Caller)',
+      bLabel: 'Side B\n(Listener)',
+      aNat: false, bNat: true,
+      portFwd: true,
+      phases: [
+        { desc: 'B\'s NAT has port forwarding rule: port 9000 \u2192 B', event: true, portfwd: true },
+        { desc: 'A sends SRT handshake to B\'s public IP:9000 \u2192', from: 'a', to: 'b', pass: true, useMapping: 'b-fwd' },
+        { desc: 'B\'s NAT forwards via port forwarding rule!', event: true },
+        { desc: 'B responds to A (public IP, no NAT) \u2190', from: 'b', to: 'a', pass: true },
+        { desc: 'Connection established (port forwarding workaround)!', connected: true },
+      ]
+    },
+    4: {
+      title: 'Rendezvous (Hole Punching)',
+      subtitle: 'Both behind NAT, both send simultaneously to punch through',
+      aLabel: 'Side A\n(Rendezvous)',
+      bLabel: 'Side B\n(Rendezvous)',
+      aNat: true, bNat: true,
+      portFwd: false,
+      phases: [
+        { desc: 'Round 1: A sends \u2192 creates A\'s NAT mapping', from: 'a', to: 'b', pass: false, blocked: 'b', createMapping: 'a' },
+        { desc: 'Round 1: B sends \u2192 creates B\'s NAT mapping', from: 'b', to: 'a', pass: false, blocked: 'a', createMapping: 'b' },
+        { desc: 'Both NAT mappings now exist!', event: true },
+        { desc: 'Round 2: A sends \u2192 matches B\'s mapping \u2714', from: 'a', to: 'b', pass: true, useMapping: 'b' },
+        { desc: 'Round 2: B sends \u2192 matches A\'s mapping \u2714', from: 'b', to: 'a', pass: true, useMapping: 'a' },
+        { desc: 'Connection established (NAT hole punched)!', connected: true },
+      ]
+    }
+  };
+
+  var PHASE_INTERVAL = 2200;
+
+  var prevTime = performance.now();
+  function update(now) {
+    var dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+
+    if (phase >= 0) {
+      phaseTimer += dt;
+      var sc = scenarios[currentScenario];
+      if (phaseTimer > PHASE_INTERVAL && phase < sc.phases.length) {
+        var p = sc.phases[phase];
+        if (p.from) {
+          var fromX, toX, fromY = MAIN_Y, toY = MAIN_Y;
+          if (p.from === 'a') {
+            fromX = (sc.aNat ? NAT_A_X : SIDE_A_X) * W + 50;
+            toX = (sc.bNat && !p.pass ? NAT_B_X : SIDE_B_X) * W - 50;
+          } else {
+            fromX = (sc.bNat ? NAT_B_X : SIDE_B_X) * W - 50;
+            toX = (sc.aNat && !p.pass ? NAT_A_X : SIDE_A_X) * W + 50;
+          }
+          animPackets.push({
+            startX: fromX, startY: fromY, targetX: toX, targetY: toY,
+            progress: 0, color: p.pass ? '#4ecdc4' : '#ff6b6b',
+            label: p.pass ? 'SRT' : 'SRT', pass: p.pass
+          });
+          stats.sent++;
+          if (!p.pass) stats.blocked++;
+        }
+        if (p.createMapping === 'a') natMappingsA = 1;
+        if (p.createMapping === 'b') natMappingsB = 1;
+        if (p.connected) connectionStatus = 'Connected';
+        if (p.failed) connectionStatus = 'FAILED';
+        events.push({ text: p.desc, y: 0, color: p.fail || p.failed ? '#ff6b6b' : p.connected ? '#00b894' : p.portfwd ? '#f9ca24' : '#c8d6e5', time: now });
+        phase++;
+        phaseTimer = 0;
+      }
+    }
+
+    // Animate packets
+    for (var i = animPackets.length - 1; i >= 0; i--) {
+      var pkt = animPackets[i];
+      pkt.progress += dt / ANIM_SPEED;
+      if (!pkt.pass && pkt.progress > 0.7) pkt.progress = Math.min(pkt.progress, 0.73);
+      if (pkt.progress > 2.5) { animPackets.splice(i, 1); }
+    }
+
+    draw(now);
+    updateSrtStats();
+    requestAnimationFrame(update);
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    var sc = scenarios[currentScenario];
+
+    // Title
+    ctx.fillStyle = '#e8ecf1'; ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(sc.title, W * 0.5, 28);
+    ctx.fillStyle = '#6b7b8d'; ctx.font = '12px system-ui';
+    ctx.fillText(sc.subtitle, W * 0.5, 48);
+
+    // Connection line
+    ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(SIDE_A_X * W, MAIN_Y); ctx.lineTo(SIDE_B_X * W, MAIN_Y); ctx.stroke();
+
+    // Side A
+    var aBoxX = SIDE_A_X * W - 55;
+    drawBox3(ctx, aBoxX, MAIN_Y - 35, 110, 70, '#1e2738', '#4ecdc4', sc.aLabel.split('\n')[0], sc.aLabel.split('\n')[1]);
+
+    // Side B
+    var bBoxX = SIDE_B_X * W - 55;
+    drawBox3(ctx, bBoxX, MAIN_Y - 35, 110, 70, '#1e2738', '#6c8cff', sc.bLabel.split('\n')[0], sc.bLabel.split('\n')[1]);
+
+    // NAT A
+    if (sc.aNat) {
+      var natABoxX = NAT_A_X * W - 35;
+      drawBox3(ctx, natABoxX, MAIN_Y - 25, 70, 50, '#2a2000', '#f9ca24', 'NAT A', '');
+      if (natMappingsA > 0) {
+        ctx.fillStyle = '#a29bfe'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('mapping \u2713', NAT_A_X * W, MAIN_Y + 38);
+      }
+    }
+
+    // NAT B
+    if (sc.bNat) {
+      var natBBoxX = NAT_B_X * W - 35;
+      var natBColor = sc.portFwd ? '#f9ca24' : '#f9ca24';
+      drawBox3(ctx, natBBoxX, MAIN_Y - 25, 70, 50, '#2a2000', natBColor, 'NAT B', '');
+      if (sc.portFwd) {
+        ctx.fillStyle = '#f9ca24'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('port fwd \u2713', NAT_B_X * W, MAIN_Y + 38);
+      } else if (natMappingsB > 0) {
+        ctx.fillStyle = '#a29bfe'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('mapping \u2713', NAT_B_X * W, MAIN_Y + 38);
+      }
+    }
+
+    // "INTERNET" label
+    ctx.fillStyle = '#4a5568'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('INTERNET', MID_X * W, MAIN_Y - 50);
+
+    // Connection status indicator
+    if (connectionStatus === 'Connected') {
+      ctx.strokeStyle = '#00b894'; ctx.lineWidth = 3; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(SIDE_A_X * W + 55, MAIN_Y); ctx.lineTo(SIDE_B_X * W - 55, MAIN_Y); ctx.stroke();
+      ctx.fillStyle = '#00b894'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('\u2713 CONNECTED', MID_X * W, MAIN_Y - 65);
+    } else if (connectionStatus === 'FAILED') {
+      ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('\u2716 FAILED', MID_X * W, MAIN_Y - 65);
+    }
+
+    // Animated packets
+    animPackets.forEach(function(pkt) {
+      var t = easeInOut(clamp(pkt.progress, 0, 1));
+      var px = lerp(pkt.startX, pkt.targetX, t);
+      var py = lerp(pkt.startY, pkt.targetY, t);
+      var alpha = pkt.progress > 1.5 ? Math.max(0, 1 - (pkt.progress - 1.5)) : 1;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = pkt.color;
+      rr(ctx, px - 18, py - 12, 36, 24, 5); ctx.fill();
+      ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(pkt.label, px, py + 4);
+      if (!pkt.pass && pkt.progress > 0.65) {
+        ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 13px system-ui';
+        var flashAlpha = Math.abs(Math.sin(now * 0.005));
+        ctx.globalAlpha = alpha * flashAlpha;
+        ctx.fillText('BLOCKED', px, py - 20);
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // Event log
+    var logY = 260;
+    ctx.fillStyle = '#111620';
+    ctx.fillRect(W * 0.06, logY, W * 0.88, H - logY - 10);
+    ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 1;
+    ctx.strokeRect(W * 0.06, logY, W * 0.88, H - logY - 10);
+    ctx.fillStyle = '#6b7b8d'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('Connection Log:', W * 0.09, logY + 20);
+
+    events.forEach(function(ev, idx) {
+      var ey = logY + 40 + idx * 28;
+      if (ey > H - 20) return;
+      var stepNum = idx + 1;
+      ctx.fillStyle = '#4a5568'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText('Step ' + stepNum + ':', W * 0.09, ey);
+      ctx.fillStyle = ev.color; ctx.font = '12px system-ui';
+      ctx.fillText(ev.text, W * 0.17, ey);
+    });
+
+    // Idle instruction
+    if (phase === -1 && events.length === 0) {
+      ctx.fillStyle = '#4a5568'; ctx.font = 'italic 14px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Select a scenario and click "Play" to see how SRT connects through NAT', W * 0.5, logY + 60);
+    }
+  }
+
+  function drawBox3(ctx, x, y, w, h, bg, borderColor, line1, line2) {
+    ctx.fillStyle = bg;
+    rr(ctx, x, y, w, h, 8); ctx.fill();
+    ctx.strokeStyle = borderColor; ctx.lineWidth = 2;
+    rr(ctx, x, y, w, h, 8); ctx.stroke();
+    ctx.fillStyle = '#c8d6e5'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(line1, x + w/2, y + h/2 - (line2 ? 4 : 0) + 2);
+    if (line2) {
+      ctx.fillStyle = '#6b7b8d'; ctx.font = '11px system-ui';
+      ctx.fillText(line2, x + w/2, y + h/2 + 14);
+    }
+  }
+
+  function updateSrtStats() {
+    var statusEl = document.getElementById('srt-s-status');
+    statusEl.textContent = connectionStatus;
+    statusEl.style.color = connectionStatus === 'Connected' ? '#00b894' :
+                            connectionStatus === 'FAILED' ? '#ff6b6b' :
+                            connectionStatus === 'Establishing...' ? '#f9ca24' : '#6b7b8d';
+    document.getElementById('srt-s-mappings').textContent = 'A: ' + natMappingsA + '  B: ' + natMappingsB;
+    document.getElementById('srt-s-sent').textContent = stats.sent;
+    document.getElementById('srt-s-blocked').textContent = stats.blocked;
+  }
+
+  requestAnimationFrame(update);
+})();
+
+// ===================== TAB 4: VOS 360 / LRS =====================
+(function() {
+  var canvas = document.getElementById('canvas-lrs');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 600;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var currentScenario = 1;
+  var phase = -1;
+  var phaseTimer = 0;
+  var animPackets = [];
+  var events = [];
+  var stats = { sent: 0, blocked: 0 };
+  var pipelineStatus = 'Idle';
+  var activeHops = 0;
+  var hopStatus = [false, false, false]; // hop1 XOS→CloudSrc, hop2 CloudSrc→CloudEdge, hop3 CloudEdge→Ingest
+  var failedPath = null; // for failover scenario
+
+  // Pipeline node positions (fraction of W)
+  var NODES = {
+    xos:       { fx: 0.06, y: 80, label: 'XOS Encoder', sub: '(Venue)', w: 100, h: 50 },
+    nat:       { fx: 0.18, y: 80, label: 'Venue NAT', sub: '', w: 70, h: 40 },
+    exproute:  { fx: 0.27, y: 80, label: 'Express Route', sub: '(Colorado)', w: 100, h: 50 },
+    cloudsrc:  { fx: 0.44, y: 80, label: 'Cloud Source', sub: 'LRS (US West 2)', w: 100, h: 50 },
+    cloudedge: { fx: 0.61, y: 80, label: 'Cloud Edge', sub: 'LRS', w: 90, h: 50 },
+    ingest:    { fx: 0.77, y: 80, label: 'Ingest VM', sub: '(Azure)', w: 90, h: 50 },
+    streamproc:{ fx: 0.92, y: 80, label: 'Stream Proc', sub: '(Azure)', w: 86, h: 50 },
+    // Failover alternate path
+    exproute2: { fx: 0.27, y: 170, label: 'Express Route', sub: '(Ashburn)', w: 100, h: 50 },
+    cloudsrc2: { fx: 0.44, y: 170, label: 'Cloud Source', sub: 'LRS (US East 2)', w: 100, h: 50 },
+  };
+
+  var paused = false;
+  var PHASE_INTERVAL = 5000;
+  var ANIM_SPEED = 4500;
+  var MAIN_Y = 80; // y for main pipeline row
+  var LOG_Y = 240; // event log top
+
+  // Scenario definitions
+  var scenarios = {
+    1: {
+      title: 'Via Express Route (Normal Flow)',
+      subtitle: 'Private peering \u2014 no NAT, no public internet. XOS \u2192 Cloud Source \u2192 Cloud Edge \u2192 Ingest.',
+      showNat: false, showFailover: false,
+      phases: [
+        { desc: 'LRS Cloud Source is LISTENER by default \u2014 it exposes a URL:port for external sources to connect to', event: true, info: true },
+        { desc: 'XOS Encoder is CALLER \u2014 it connects TO the LRS Listener URL (upstream sources initiate connections)', from: 'xos', to: 'cloudsrc', pass: true, hop: 0 },
+        { desc: 'Hop 1 connected. Express Route is private peering \u2014 no NAT, no public internet', event: true, hopConnect: 0 },
+        { desc: 'LRS CS/CE can also act as CALLER (recently added) \u2014 here Cloud Source calls Cloud Edge to forward the stream', from: 'cloudsrc', to: 'cloudedge', pass: true, hop: 1 },
+        { desc: 'LRS Cloud Edge is LISTENER by default \u2014 same pattern: it exposes a URL:port for upstream LRS to connect', event: true, hopConnect: 1 },
+        { desc: 'LRS Cloud Edge acts as CALLER to push the stream to Ingest VM (Listener)', from: 'cloudedge', to: 'ingest', pass: true, hop: 2 },
+        { desc: 'Ingest VM is LISTENER \u2014 stable endpoint; Listeners accept multiple Callers via SRT Stream ID', event: true, hopConnect: 2 },
+        { desc: 'Key: LRS defaults to Listener (URL:port), but CS/CE can also be configured as Caller when needed', event: true, info: true },
+        { desc: 'Pipeline connected \u2014 video flows: XOS \u2192 Cloud Source \u2192 Cloud Edge \u2192 Ingest \u2192 Stream Processor', connected: true },
+      ]
+    },
+    2: {
+      title: 'Via Public Internet (Venue Behind NAT)',
+      subtitle: 'XOS encoder is at a venue behind NAT \u2014 it MUST be the Caller so its outbound creates a NAT mapping.',
+      showNat: true, showFailover: false,
+      phases: [
+        { desc: 'LRS Cloud Source is LISTENER (default) \u2014 it has a public Azure IP and exposes a URL:port', event: true, info: true },
+        { desc: 'XOS Encoder is CALLER \u2014 it is behind venue NAT, so it MUST send first (outbound creates NAT mapping)', from: 'xos', to: 'cloudsrc', pass: true, hop: 0, throughNat: true },
+        { desc: 'NAT mapping created! Outbound rewrites private src IP to venue\'s public IP', event: true, natMapping: true },
+        { desc: 'LRS Cloud Source (Listener) receives handshake, sends response back through the NAT mapping', from: 'cloudsrc', to: 'xos', pass: true, hop: 0, returnPath: true },
+        { desc: 'Hop 1 connected \u2014 NAT mapping keeps the path open; SRT keep-alives prevent expiration', event: true, hopConnect: 0 },
+        { desc: 'LRS Cloud Source now acts as CALLER to forward stream to Cloud Edge (both in Azure VNet, no NAT)', from: 'cloudsrc', to: 'cloudedge', pass: true, hop: 1 },
+        { desc: 'LRS Cloud Edge is LISTENER (default URL:port) \u2014 receives the forwarded stream', event: true, hopConnect: 1 },
+        { desc: 'LRS Cloud Edge acts as CALLER \u2192 Ingest VM is LISTENER \u2014 inside Azure, no NAT', from: 'cloudedge', to: 'ingest', pass: true, hop: 2 },
+        { desc: 'Hop 3 connected \u2014 full pipeline established!', event: true, hopConnect: 2 },
+        { desc: 'Key: Encoder behind NAT MUST be Caller \u2014 only outbound creates the mapping. LRS defaults to Listener.', connected: true },
+      ]
+    },
+    3: {
+      title: 'Wrong Mode \u2014 LRS as Caller to NAT\'d Encoder (Fails)',
+      subtitle: 'LRS can be Caller (recently added), but NOT when the target is behind NAT without port forwarding.',
+      showNat: true, showFailover: false,
+      phases: [
+        { desc: 'LRS CS/CE can be configured as Caller (recently added feature). But here the target XOS is behind venue NAT...', event: true, fail: true },
+        { desc: 'MISCONFIGURED: LRS Cloud Source set as Caller, XOS set as Listener (behind venue NAT)', event: true, fail: true },
+        { desc: 'Problem: XOS is Listener but never sent outbound \u2014 venue NAT has NO mapping for inbound traffic', event: true, fail: true },
+        { desc: 'LRS Cloud Source (Caller) sends SRT handshake toward XOS encoder\'s venue IP...', from: 'cloudsrc', to: 'xos', pass: false, blocked: 'nat', hop: 0 },
+        { desc: 'Venue NAT receives inbound packet but has NO MAPPING \u2014 packet DROPPED!', event: true, fail: true },
+        { desc: 'LRS retries... venue NAT still blocks \u2014 no outbound from XOS means no mapping ever existed', from: 'cloudsrc', to: 'xos', pass: false, blocked: 'nat', hop: 0 },
+        { desc: 'Connection FAILED \u2014 LRS Caller mode only works when the target is directly reachable (public IP or same VNet)', event: true, fail: true },
+        { desc: 'Fix: Keep LRS as Listener (default) and set XOS as Caller \u2014 its outbound creates the NAT mapping', event: true, info: true },
+        { desc: 'Pipeline FAILED \u2014 device behind NAT must always be the Caller, or use port forwarding', failed: true },
+      ]
+    },
+    4: {
+      title: 'Failover \u2014 Primary Path Dies, Reroutes',
+      subtitle: 'Redundant LRS VMs across regions. When primary path fails, traffic reroutes through secondary.',
+      showNat: false, showFailover: true,
+      phases: [
+        { desc: 'LRS Cloud Source US West 2 is LISTENER (default URL:port). XOS (Caller) connects via Express Route Colorado', from: 'xos', to: 'cloudsrc', pass: true, hop: 0 },
+        { desc: 'Hop 1 connected \u2014 video flowing via primary path', event: true, hopConnect: 0 },
+        { desc: 'Full pipeline connected: Cloud Source \u2192 Cloud Edge \u2192 Ingest (all inside Azure)', event: true, hopConnect: 1, hopConnect2: 2, fast: true },
+        { desc: '\u26a0 Express Route Colorado FAILS \u2014 path down! SRT session lost', event: true, fail: true, pathFail: 'primary' },
+        { desc: 'All hops on primary path disconnected \u2014 need to reroute', event: true, fail: true, hopDisconnect: true },
+        { desc: 'LRS Cloud Source US East 2 is also LISTENER \u2014 XOS (Caller) reconnects via Express Route Ashburn', from: 'xos', to: 'cloudsrc2', pass: true, hop: 0, failover: true },
+        { desc: 'Failover hop connected \u2014 redundant LRS Listeners across regions enable seamless rerouting', event: true, hopConnect: 0, failover: true },
+        { desc: 'Pipeline restored! Multiple LRS Listener VMs across regions = built-in failover', connected: true, failover: true },
+      ]
+    }
+  };
+
+  // Scenario buttons
+  document.querySelectorAll('#lrs-scenario-btns .scenario-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#lrs-scenario-btns .scenario-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentScenario = +btn.dataset.sc;
+      resetLrs();
+    });
+  });
+
+  document.getElementById('lrs-pause').addEventListener('click', function() {
+    paused = !paused;
+    this.textContent = paused ? 'Resume' : 'Pause';
+  });
+  document.getElementById('lrs-play').addEventListener('click', function() { playLrs(); });
+  document.getElementById('lrs-reset').addEventListener('click', function() { resetLrs(); });
+
+  function resetLrs() {
+    phase = -1; phaseTimer = 0; animPackets = []; events = [];
+    stats = { sent: 0, blocked: 0 };
+    pipelineStatus = 'Idle';
+    activeHops = 0;
+    hopStatus = [false, false, false];
+    failedPath = null;
+    updateLrsStats();
+  }
+
+  function playLrs() {
+    resetLrs();
+    phase = 0;
+    phaseTimer = 0;
+    pipelineStatus = 'Establishing...';
+  }
+
+  function nodeX(n) { return NODES[n].fx * W; }
+  function nodeW(n) { return NODES[n].w; }
+
+  var prevTime = performance.now();
+  function update(now) {
+    if (paused) { prevTime = now; draw(now); updateLrsStats(); requestAnimationFrame(update); return; }
+    var dt = Math.min(now - prevTime, 50);
+    prevTime = now;
+    var sc = scenarios[currentScenario];
+
+    if (phase >= 0) {
+      phaseTimer += dt;
+      if (phaseTimer > PHASE_INTERVAL && phase < sc.phases.length) {
+        var p = sc.phases[phase];
+
+        if (p.from) {
+          var fromN = NODES[p.from], toN = NODES[p.to];
+          var fromPx = fromN.fx * W + fromN.w / 2;
+          var toPx = toN.fx * W + toN.w / 2;
+          // For blocked packets heading toward NAT
+          if (!p.pass && p.blocked === 'nat') {
+            toPx = NODES.nat.fx * W + NODES.nat.w / 2;
+          }
+          var pktY = p.failover ? 170 : MAIN_Y;
+          animPackets.push({
+            startX: fromPx, startY: pktY,
+            targetX: toPx, targetY: p.failover ? 170 : (p.returnPath ? MAIN_Y : MAIN_Y),
+            progress: 0, color: p.pass ? '#4ecdc4' : '#ff6b6b',
+            label: 'SRT', pass: p.pass
+          });
+          stats.sent++;
+          if (!p.pass) stats.blocked++;
+        }
+
+        if (p.hopConnect !== undefined) {
+          hopStatus[p.hopConnect] = true;
+          activeHops = hopStatus.filter(function(h) { return h; }).length;
+        }
+        if (p.hopConnect2 !== undefined) {
+          hopStatus[p.hopConnect2] = true;
+          activeHops = hopStatus.filter(function(h) { return h; }).length;
+        }
+        if (p.hopDisconnect) {
+          hopStatus = [false, false, false];
+          activeHops = 0;
+        }
+        if (p.pathFail === 'primary') {
+          failedPath = 'primary';
+        }
+        if (p.connected) pipelineStatus = 'Connected';
+        if (p.failed) pipelineStatus = 'FAILED';
+
+        events.push({
+          text: p.desc,
+          color: p.fail || p.failed ? '#ff6b6b' : p.connected ? '#00b894' : p.info ? '#6c8cff' : p.natMapping ? '#a29bfe' : '#c8d6e5',
+          time: now
+        });
+
+        phase++;
+        phaseTimer = 0;
+      }
+    }
+
+    // Animate packets
+    for (var i = animPackets.length - 1; i >= 0; i--) {
+      var pkt = animPackets[i];
+      pkt.progress += dt / ANIM_SPEED;
+      if (!pkt.pass && pkt.progress > 0.7) pkt.progress = Math.min(pkt.progress, 0.73);
+      if (pkt.progress > 3.5) { animPackets.splice(i, 1); }
+    }
+
+    draw(now);
+    updateLrsStats();
+    requestAnimationFrame(update);
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    var sc = scenarios[currentScenario];
+
+    // Title
+    ctx.fillStyle = '#e8ecf1'; ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(sc.title, W * 0.5, 24);
+    ctx.fillStyle = '#6b7b8d'; ctx.font = '12px system-ui';
+    ctx.fillText(sc.subtitle, W * 0.5, 42);
+
+    // Azure cloud background
+    var azureX = NODES.cloudsrc.fx * W - 16;
+    var azureW = (NODES.streamproc.fx * W + NODES.streamproc.w) - azureX + 16;
+    ctx.fillStyle = '#0d182808';
+    rr(ctx, azureX, 52, azureW, 88, 10); ctx.fill();
+    ctx.strokeStyle = '#6c8cff30'; ctx.lineWidth = 1;
+    rr(ctx, azureX, 52, azureW, 88, 10); ctx.stroke();
+    ctx.fillStyle = '#6c8cff60'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('Azure Cloud', azureX + 8, 65);
+
+    // Draw connection lines (main pipeline)
+    var mainNodes = ['xos', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
+    if (sc.showNat) mainNodes = ['xos', 'nat', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
+    else if (!sc.showNat) {
+      // Show express route in between
+      mainNodes = ['xos', 'exproute', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
+    }
+
+    for (var i = 0; i < mainNodes.length - 1; i++) {
+      var n1 = NODES[mainNodes[i]], n2 = NODES[mainNodes[i + 1]];
+      var x1 = n1.fx * W + n1.w, y1 = MAIN_Y;
+      var x2 = n2.fx * W, y2 = MAIN_Y;
+      var lineColor = '#2a3040';
+      // Color connected hops green
+      if (mainNodes[i] === 'xos' && hopStatus[0]) lineColor = '#00b89480';
+      if ((mainNodes[i] === 'cloudsrc' || mainNodes[i] === 'exproute') && hopStatus[0]) lineColor = '#00b89480';
+      if (mainNodes[i] === 'cloudedge' && hopStatus[2]) lineColor = '#00b89480';
+      if (failedPath === 'primary' && (mainNodes[i] === 'xos' || mainNodes[i] === 'exproute')) lineColor = '#ff6b6b40';
+
+      ctx.strokeStyle = lineColor; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      // Arrowhead
+      ctx.fillStyle = lineColor;
+      ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 7, y2 - 4); ctx.lineTo(x2 - 7, y2 + 4); ctx.closePath(); ctx.fill();
+    }
+
+    // Failed path X
+    if (failedPath === 'primary') {
+      var erN = NODES.exproute;
+      ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('\u2716', erN.fx * W + erN.w / 2, MAIN_Y - 32);
+      ctx.font = 'bold 10px system-ui';
+      ctx.fillText('PATH DOWN', erN.fx * W + erN.w / 2, MAIN_Y - 42);
+    }
+
+    // Failover path (secondary)
+    if (sc.showFailover) {
+      var er2 = NODES.exproute2, cs2 = NODES.cloudsrc2;
+      // Line from XOS down to failover row
+      var xosN = NODES.xos;
+      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738';
+      ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(xosN.fx * W + xosN.w / 2, MAIN_Y + xosN.h / 2);
+      ctx.lineTo(xosN.fx * W + xosN.w / 2, 170);
+      ctx.lineTo(er2.fx * W, 170);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Line between failover nodes
+      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(er2.fx * W + er2.w, 170); ctx.lineTo(cs2.fx * W, 170); ctx.stroke();
+      ctx.fillStyle = failedPath ? '#4ecdc440' : '#1e2738';
+      ctx.beginPath(); ctx.moveTo(cs2.fx * W, 170); ctx.lineTo(cs2.fx * W - 7, 166); ctx.lineTo(cs2.fx * W - 7, 174); ctx.closePath(); ctx.fill();
+      // Line from failover CloudSrc back up to CloudEdge
+      var ceN = NODES.cloudedge;
+      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738';
+      ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(cs2.fx * W + cs2.w, 170);
+      ctx.lineTo(ceN.fx * W + ceN.w / 2, 170);
+      ctx.lineTo(ceN.fx * W + ceN.w / 2, MAIN_Y + ceN.h / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw failover nodes
+      drawNodeBox(er2.fx * W, 170 - er2.h / 2, er2.w, er2.h, er2.label, er2.sub, '#1e2738', failedPath ? '#6c8cff' : '#2a3040');
+      drawNodeBox(cs2.fx * W, 170 - cs2.h / 2, cs2.w, cs2.h, cs2.label, cs2.sub, '#1e2738', failedPath ? '#4ecdc4' : '#2a3040');
+    }
+
+    // Draw main pipeline nodes
+    var nodesToDraw = sc.showNat
+      ? ['xos', 'nat', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc']
+      : ['xos', 'exproute', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
+
+    nodesToDraw.forEach(function(nk) {
+      var n = NODES[nk];
+      var borderColor = '#2a3040';
+      if (nk === 'xos') borderColor = '#4ecdc4';
+      else if (nk === 'nat') borderColor = '#f9ca24';
+      else if (nk === 'exproute') borderColor = (failedPath === 'primary') ? '#ff6b6b' : '#6c8cff';
+      else if (nk === 'cloudsrc' || nk === 'cloudedge') borderColor = '#a29bfe';
+      else if (nk === 'ingest' || nk === 'streamproc') borderColor = '#00b894';
+      drawNodeBox(n.fx * W, MAIN_Y - n.h / 2, n.w, n.h, n.label, n.sub, '#1e2738', borderColor);
+    });
+
+    // Caller/Listener labels below nodes
+    ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+    var roleY = MAIN_Y + 36;
+    if (sc.showNat) {
+      ctx.fillStyle = '#f9ca24';
+      ctx.fillText('CALLER', NODES.xos.fx * W + NODES.xos.w / 2, roleY);
+      ctx.fillText('(behind NAT)', NODES.xos.fx * W + NODES.xos.w / 2, roleY + 11);
+      ctx.fillStyle = '#a29bfe';
+      ctx.fillText('LISTENER', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY);
+      ctx.fillText('& CALLER \u2192', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY + 11);
+    } else {
+      ctx.fillStyle = '#f9ca24';
+      ctx.fillText('CALLER', NODES.xos.fx * W + NODES.xos.w / 2, roleY);
+      ctx.fillStyle = '#a29bfe';
+      ctx.fillText('LISTENER', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY);
+      ctx.fillText('& CALLER \u2192', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY + 11);
+    }
+    ctx.fillStyle = '#a29bfe';
+    ctx.fillText('LISTENER', NODES.cloudedge.fx * W + NODES.cloudedge.w / 2, roleY);
+    ctx.fillText('& CALLER \u2192', NODES.cloudedge.fx * W + NODES.cloudedge.w / 2, roleY + 11);
+    ctx.fillStyle = '#00b894';
+    ctx.fillText('LISTENER', NODES.ingest.fx * W + NODES.ingest.w / 2, roleY);
+
+    // Hop status indicators
+    var hopPairs = [
+      [NODES.xos, NODES.cloudsrc],
+      [NODES.cloudsrc, NODES.cloudedge],
+      [NODES.cloudedge, NODES.ingest]
+    ];
+    hopPairs.forEach(function(pair, idx) {
+      if (hopStatus[idx]) {
+        var mx = (pair[0].fx * W + pair[0].w + pair[1].fx * W) / 2;
+        ctx.fillStyle = '#00b894'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText('\u2713', mx, MAIN_Y - 30);
+      }
+    });
+
+    // Animated packets
+    animPackets.forEach(function(pkt) {
+      var t = easeInOut(clamp(pkt.progress, 0, 1));
+      var px = lerp(pkt.startX, pkt.targetX, t);
+      var py = lerp(pkt.startY, pkt.targetY, t);
+      var alpha = pkt.progress > 2.5 ? Math.max(0, 1 - (pkt.progress - 2.5)) : 1;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = pkt.color;
+      rr(ctx, px - 18, py - 12, 36, 24, 5); ctx.fill();
+      ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(pkt.label, px, py + 4);
+      if (!pkt.pass && pkt.progress > 0.65) {
+        ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 13px system-ui';
+        var flashAlpha = Math.abs(Math.sin(now * 0.005));
+        ctx.globalAlpha = alpha * flashAlpha;
+        ctx.fillText('BLOCKED', px, py - 20);
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    // Event log
+    ctx.fillStyle = '#111620';
+    ctx.fillRect(W * 0.04, LOG_Y, W * 0.92, H - LOG_Y - 8);
+    ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 1;
+    ctx.strokeRect(W * 0.04, LOG_Y, W * 0.92, H - LOG_Y - 8);
+    ctx.fillStyle = '#6b7b8d'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('Pipeline Log:', W * 0.07, LOG_Y + 18);
+
+    events.forEach(function(ev, idx) {
+      var ey = LOG_Y + 38 + idx * 26;
+      if (ey > H - 16) return;
+      ctx.fillStyle = '#4a5568'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText('Step ' + (idx + 1) + ':', W * 0.07, ey);
+      ctx.fillStyle = ev.color; ctx.font = '12px system-ui';
+      ctx.fillText(ev.text, W * 0.14, ey);
+    });
+
+    // Idle instruction
+    if (phase === -1 && events.length === 0) {
+      ctx.fillStyle = '#4a5568'; ctx.font = 'italic 14px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Select a scenario and click "Play" to see how SRT streams flow through the VOS 360 pipeline', W * 0.5, LOG_Y + 60);
+    }
+  }
+
+  function drawNodeBox(x, y, w, h, line1, line2, bg, borderColor) {
+    ctx.fillStyle = bg;
+    rr(ctx, x, y, w, h, 8); ctx.fill();
+    ctx.strokeStyle = borderColor; ctx.lineWidth = 2;
+    rr(ctx, x, y, w, h, 8); ctx.stroke();
+    ctx.fillStyle = '#c8d6e5'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(line1, x + w / 2, y + h / 2 - (line2 ? 4 : 0) + 2);
+    if (line2) {
+      ctx.fillStyle = '#6b7b8d'; ctx.font = '9px system-ui';
+      ctx.fillText(line2, x + w / 2, y + h / 2 + 12);
+    }
+  }
+
+  function updateLrsStats() {
+    var statusEl = document.getElementById('lrs-s-status');
+    statusEl.textContent = pipelineStatus;
+    statusEl.style.color = pipelineStatus === 'Connected' ? '#00b894' :
+                            pipelineStatus === 'FAILED' ? '#ff6b6b' :
+                            pipelineStatus === 'Establishing...' ? '#f9ca24' : '#6b7b8d';
+    document.getElementById('lrs-s-hops').textContent = activeHops + ' / 3';
+    document.getElementById('lrs-s-sent').textContent = stats.sent;
+    document.getElementById('lrs-s-blocked').textContent = stats.blocked;
+  }
+
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>
