@@ -201,6 +201,49 @@
       Each arrow = an SRT connection carrying UDP datagrams inside IP packets.<br>
       Only the first hop (Customer &rarr; LRS Cloud Source) crosses the public internet and requires NAT traversal.
     </div>
+
+    <!-- Caller/Listener footnote -->
+    <div class="desc-toggle" style="margin-top:12px;border-left-color:#f9ca24;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+      <span class="arrow">&#9654;</span>
+      <span class="toggle-title" style="color:#f9ca24;">Why is the SRT Source a Caller and LRS Cloud Source a Listener?</span>
+      <span class="toggle-hint">click to expand</span>
+    </div>
+    <div class="desc-body">
+      <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:16px;background:#0d1117;border-radius:8px;border-left:3px solid #f9ca24;">
+
+        <strong style="color:#ff6b6b;">The NAT problem</strong><br>
+        The SRT Source sits behind the customer's NAT gateway (corporate firewall or cloud NAT in their GCP VPC). NAT blocks all <strong style="color:#c8d6e5;">unsolicited inbound traffic</strong> &mdash; if no device inside the network initiated a connection first, packets arriving from outside are silently dropped.
+
+        <br><br>
+        <strong style="color:#c8d6e5;">SRT Source must be the Caller</strong><br>
+        The encoder initiates an outbound SRT handshake to the LRS Cloud Source's public IP and port. This outbound packet passes through the customer's NAT, which creates a <strong style="color:#4ecdc4;">mapping (pinhole)</strong>: <code style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;color:#4ecdc4;background:#1e2738;padding:1px 5px;border-radius:3px;">internal IP:port &harr; external IP:port</code>. LRS Cloud Source responds, and NAT recognises the response as return traffic for the existing mapping &mdash; so it lets it through. Bidirectional SRT communication is now established through the NAT pinhole.
+
+        <br><br>
+        <strong style="color:#c8d6e5;">LRS Cloud Source can be the Listener</strong><br>
+        The LRS Cloud Source is also inside a VPC (Harmonic's LRS VPC in GCP) &mdash; so it has NAT/firewall too. The difference is how it's configured:
+
+        <div style="display:flex;gap:12px;margin:12px 0;flex-wrap:wrap;">
+          <div style="flex:1;min-width:220px;background:#111620;border:1px solid #1e2738;border-radius:6px;padding:10px 12px;">
+            <div style="font-size:11px;font-weight:700;color:#ff6b6b;margin-bottom:4px;">Customer's NAT</div>
+            <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">
+              <strong style="color:#c8d6e5;">Dynamic, many-to-one</strong> &mdash; hundreds of internal IPs share a few external IPs.<br>
+              Inbound traffic is <strong style="color:#ff6b6b;">blocked</strong> unless an outbound connection created the pinhole first.<br>
+              <span style="color:#4ecdc4;">&#8594; Must be Caller</span>
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px;background:#111620;border:1px solid #1e2738;border-radius:6px;padding:10px 12px;">
+            <div style="font-size:11px;font-weight:700;color:#f9ca24;margin-bottom:4px;">LRS Cloud Source</div>
+            <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">
+              <strong style="color:#c8d6e5;">Static, 1:1 mapping</strong> &mdash; dedicated public IP mapped permanently to the VM (or via a Network Load Balancer).<br>
+              Firewall rules <strong style="color:#00b894;">allow inbound UDP</strong> on the SRT port. No outbound connection needed first.<br>
+              <span style="color:#4ecdc4;">&#8594; Can be Listener</span>
+            </div>
+          </div>
+        </div>
+
+        <strong style="color:#c8d6e5;">Inside the Harmonic cloud</strong> (Cloud Source &rarr; VOS 360, or Cloud Source &rarr; Cloud Edge), there is no NAT between the components &mdash; it's all within VPC or cross-region peering. Caller/Listener assignment there is an operational choice, not a NAT constraint.
+      </div>
+    </div>
   </div>
 
   <!-- Packet Encapsulation -->
