@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Live Video Transport &mdash; Protocol Simulations</title>
+<title>SRT Unpacked &mdash; NAT, Transport &amp; Delivery</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
@@ -88,7 +88,7 @@
 <body>
 
 <div class="header">
-  <h1><span>Live Video Transport</span> &mdash; Protocol Simulations</h1>
+  <h1><span>SRT Unpacked</span> &mdash; NAT, Transport &amp; Delivery</h1>
 </div>
 
 <div class="content">
@@ -101,7 +101,7 @@
   </div>
   <div class="desc-body">
     <div class="sim-desc" style="margin-bottom:24px;">
-      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source contributing compressed video (H.264/H.265) through <strong>LRS (Live Routing Service)</strong> cloud routing to transcoding via <strong>VOS 360</strong>.
+      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source in a <strong>customer GCP VPC</strong> contributing compressed video (H.264/H.265) through <strong>LRS (Live Routing Service)</strong> in Harmonic's dedicated VPC, routed to <strong>VOS 360</strong> for transcoding.
       <br><br>
       Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
     </div>
@@ -110,22 +110,28 @@
   <!-- Pipeline Diagram -->
   <div class="section-label" style="margin-top:24px;">The VOS 360 / LRS Pipeline</div>
   <div class="diagram-wrapper">
-    <div class="diagram-pre"><span class="teal">SRT Source</span>              <span class="yellow">LRS Cloud Source</span>         <span class="yellow">LRS Cloud Edge</span>          <span class="green">Transcoder</span>
-<span class="muted">(Encoder:</span>                <span class="muted">(Azure VM:</span>               <span class="muted">(Azure VM:</span>              <span class="muted">(VOS 360</span>
-<span class="muted"> H.264/H.265)</span>            <span class="muted"> Listener)</span>               <span class="muted"> Listener/Caller)</span>       <span class="muted"> Ingest)</span>
-<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span><span class="teal">--- SRT (Caller) ------&gt;</span><span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>   <span class="blue">UDP datagrams</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>   <span class="red">NAT traversal</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>   <span class="muted">over internet</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>                        <span class="white">|</span><span class="yellow">--- SRT (Caller) ----------&gt;</span><span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>                        <span class="white">|</span>   <span class="blue">Azure VNet / ExpressRoute</span> <span class="white">|</span>                       <span class="white">|</span>
-<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span><span class="green">--- SRT (Caller) -----&gt;</span><span class="white">|</span>
-<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>   <span class="muted">to Ingest VM</span>       <span class="white">|</span>
-<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+    <div class="diagram-pre"><span class="muted">┌─────────────────────┐   ┌──────────────────────────────────────────────────────────┐</span>
+<span class="muted">│</span> <span class="blue">Customer GCP VPC</span>     <span class="muted">│</span>   <span class="muted">│</span> <span class="yellow">Harmonic LRS VPC</span>                                         <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                                                          <span class="muted">│</span>
+<span class="muted">│</span>  <span class="teal">SRT Source</span>           <span class="muted">│</span>   <span class="muted">│</span>  <span class="yellow">LRS Cloud Source</span>                                       <span class="muted">│</span>
+<span class="muted">│</span>  <span class="muted">(Encoder:</span>            <span class="muted">│</span>   <span class="muted">│</span>  <span class="muted">(Listener)</span>                                              <span class="muted">│</span>
+<span class="muted">│</span>  <span class="muted"> H.264/H.265)</span>        <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>       <span class="white">|</span>               <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>       <span class="white">|</span><span class="teal">--- SRT Caller ---</span><span class="muted">│</span><span class="teal">--&gt;</span><span class="muted">│</span><span class="teal">------&gt;</span><span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>       <span class="white">|</span>  <span class="red">NAT traversal</span> <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>       <span class="white">|</span>  <span class="muted">over internet</span> <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">├</span><span class="green">--- SRT Caller ---&gt;</span> <span class="green">VOS 360 Transcoder</span>  <span class="muted">(same region)</span> <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>   <span class="muted">within VPC</span>         <span class="muted">(Ingest)</span>                      <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">└</span><span class="yellow">--- SRT Caller ---&gt;</span> <span class="yellow">LRS Edge</span> <span class="yellow">--- SRT ---&gt;</span> <span class="green">VOS 360</span>  <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>           <span class="muted">within VPC</span>         <span class="muted">(same VPC)</span>    <span class="muted">cross-region</span>  <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                              <span class="muted">(routes to</span>    <span class="muted">(different</span>    <span class="muted">│</span>
+<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                              <span class="muted"> diff region)</span>  <span class="muted"> GCP region)</span>   <span class="muted">│</span>
+<span class="muted">└─────────────────────┘</span>   <span class="muted">└──────────────────────────────────────────────────────────┘</span>
 
 <span class="muted">Each arrow = an SRT connection carrying UDP datagrams inside IP packets.</span>
-<span class="muted">The simulations below explain what happens inside each hop.</span></div>
+<span class="muted">Only the first hop (Customer → LRS) crosses the public internet and requires NAT traversal.</span>
+<span class="muted">LRS Edge is only deployed when VOS 360 is in a different GCP region.</span></div>
   </div>
 
   <!-- Packet Encapsulation -->
@@ -189,7 +195,7 @@
     <a class="sim-card" href="nat-simulation.html" style="border-left: 3px solid #f9ca24;">
       <div class="badge" style="color:#f9ca24;">Layer 3 &mdash; Network</div>
       <div class="card-title">NAT / SRT / LRS</div>
-      <div class="card-desc">How SRT sources connect to LRS through NAT. See Caller/Listener roles, ExpressRoute vs public internet, and the full VOS 360 pipeline routing.</div>
+      <div class="card-desc">How SRT sources in a customer VPC connect to LRS through NAT. See Caller/Listener roles, public internet vs VPC-internal routing, and the full VOS 360 pipeline.</div>
       <div class="card-tabs"><strong>4 tabs:</strong> Packet Flow &bull; NAT Types &bull; SRT Through NAT &bull; VOS 360 / LRS</div>
       <div class="card-arrow">&#10132;</div>
     </a>
