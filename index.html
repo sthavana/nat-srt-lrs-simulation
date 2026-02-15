@@ -31,14 +31,26 @@
 
   /* pipeline diagram */
   .diagram-wrapper { background: #0d1117; border-radius: 12px; border: 1px solid #1e2738; padding: 24px; margin-bottom: 24px; overflow-x: auto; }
-  .diagram-pre { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; color: #8899aa; white-space: pre; }
-  .diagram-pre .teal { color: #4ecdc4; }
-  .diagram-pre .yellow { color: #f9ca24; }
-  .diagram-pre .blue { color: #6c8cff; }
-  .diagram-pre .green { color: #00b894; }
-  .diagram-pre .red { color: #ff6b6b; }
-  .diagram-pre .muted { color: #4a5568; }
-  .diagram-pre .white { color: #c8d6e5; }
+  .pipeline { display: flex; gap: 20px; min-width: 700px; }
+  .vpc-box { border: 1.5px solid #2a3040; border-radius: 12px; padding: 16px 20px; position: relative; }
+  .vpc-box .vpc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .vpc-left { flex: 0 0 200px; display: flex; flex-direction: column; align-items: center; border-color: #1e3a5f; }
+  .vpc-right { flex: 1; border-color: #3d2e0a; }
+  .node-box { background: #161b26; border: 1px solid #2a3040; border-radius: 8px; padding: 10px 14px; text-align: center; }
+  .node-box .node-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .node-box .node-sub { font-size: 11px; color: #4a5568; }
+  .arrow-row { display: flex; align-items: center; gap: 0; margin: 12px 0; }
+  .arrow-line { height: 2px; flex: 1; position: relative; }
+  .arrow-line::after { content: ''; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left-width: 7px; }
+  .arrow-label { font-size: 10px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; font-weight: 600; }
+  .arrow-sublabel { font-size: 10px; color: #4a5568; text-align: center; margin-top: 2px; }
+  .lrs-paths { margin-top: 14px; }
+  .path-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #1e2738; border-radius: 8px; margin-bottom: 8px; background: #111620; }
+  .path-row .path-label { font-size: 11px; font-weight: 700; color: #6b7b8d; flex-shrink: 0; min-width: 80px; }
+  .path-row .path-arrow { color: #2a3040; font-size: 14px; flex-shrink: 0; }
+  .path-row .path-node { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; border: 1px solid; }
+  .path-row .path-desc { font-size: 10px; color: #4a5568; }
+  .pipe-note { font-size: 11px; color: #4a5568; line-height: 1.6; margin-top: 16px; padding-top: 12px; border-top: 1px solid #1e2738; }
 
   /* encapsulation box */
   .encap-box { background: #111620; border: 1px solid #1e2738; border-radius: 8px; padding: 16px 20px; margin-top: 16px; }
@@ -110,28 +122,67 @@
   <!-- Pipeline Diagram -->
   <div class="section-label" style="margin-top:24px;">The VOS 360 / LRS Pipeline</div>
   <div class="diagram-wrapper">
-    <div class="diagram-pre"><span class="muted">┌─────────────────────┐   ┌──────────────────────────────────────────────────────────┐</span>
-<span class="muted">│</span> <span class="blue">Customer GCP VPC</span>     <span class="muted">│</span>   <span class="muted">│</span> <span class="yellow">Harmonic LRS VPC</span>                                         <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                                                          <span class="muted">│</span>
-<span class="muted">│</span>  <span class="teal">SRT Source</span>           <span class="muted">│</span>   <span class="muted">│</span>  <span class="yellow">LRS Cloud Source</span>                                       <span class="muted">│</span>
-<span class="muted">│</span>  <span class="muted">(Encoder:</span>            <span class="muted">│</span>   <span class="muted">│</span>  <span class="muted">(Listener)</span>                                              <span class="muted">│</span>
-<span class="muted">│</span>  <span class="muted"> H.264/H.265)</span>        <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>       <span class="white">|</span>               <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>       <span class="white">|</span><span class="teal">--- SRT Caller ---</span><span class="muted">│</span><span class="teal">--&gt;</span><span class="muted">│</span><span class="teal">------&gt;</span><span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>       <span class="white">|</span>  <span class="red">NAT traversal</span> <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>       <span class="white">|</span>  <span class="muted">over internet</span> <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">├</span><span class="green">--- SRT Caller ---&gt;</span> <span class="green">VOS 360 Transcoder</span>  <span class="muted">(same region)</span> <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>   <span class="muted">within VPC</span>         <span class="muted">(Ingest)</span>                      <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">|</span>                                                  <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>       <span class="white">└</span><span class="yellow">--- SRT Caller ---&gt;</span> <span class="yellow">LRS Edge</span> <span class="yellow">--- SRT ---&gt;</span> <span class="green">VOS 360</span>  <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>           <span class="muted">within VPC</span>         <span class="muted">(same VPC)</span>    <span class="muted">cross-region</span>  <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                              <span class="muted">(routes to</span>    <span class="muted">(different</span>    <span class="muted">│</span>
-<span class="muted">│</span>                       <span class="muted">│</span>   <span class="muted">│</span>                              <span class="muted"> diff region)</span>  <span class="muted"> GCP region)</span>   <span class="muted">│</span>
-<span class="muted">└─────────────────────┘</span>   <span class="muted">└──────────────────────────────────────────────────────────┘</span>
+    <div class="pipeline">
+      <!-- Customer VPC -->
+      <div class="vpc-box vpc-left">
+        <div class="vpc-label" style="color:#6c8cff;">Customer GCP VPC</div>
+        <div class="node-box" style="border-color:#1e3a5f;">
+          <div class="node-name" style="color:#4ecdc4;">SRT Source</div>
+          <div class="node-sub">Encoder: H.264 / H.265</div>
+          <div class="node-sub" style="color:#4ecdc4; margin-top:4px;">SRT Caller</div>
+        </div>
+      </div>
 
-<span class="muted">Each arrow = an SRT connection carrying UDP datagrams inside IP packets.</span>
-<span class="muted">Only the first hop (Customer → LRS) crosses the public internet and requires NAT traversal.</span>
-<span class="muted">LRS Edge is only deployed when VOS 360 is in a different GCP region.</span></div>
+      <!-- Arrow: Customer → LRS -->
+      <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;flex:0 0 90px;">
+        <div style="font-size:20px;color:#4ecdc4;">&#10132;</div>
+        <div class="arrow-label" style="color:#ff6b6b;background:#2a1215;border:1px solid #5c2020;">NAT</div>
+        <div class="arrow-sublabel">Public internet</div>
+        <div class="arrow-sublabel">UDP datagrams</div>
+      </div>
+
+      <!-- Harmonic LRS VPC -->
+      <div class="vpc-box vpc-right">
+        <div class="vpc-label" style="color:#f9ca24;">Harmonic LRS VPC</div>
+        <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+          <!-- LRS Cloud Source -->
+          <div class="node-box" style="border-color:#3d2e0a;flex:0 0 150px;">
+            <div class="node-name" style="color:#f9ca24;">LRS Cloud Source</div>
+            <div class="node-sub">SRT Listener</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;justify-content:center;align-self:center;flex-shrink:0;">
+            <div style="font-size:16px;color:#2a3040;">&#10132;</div>
+          </div>
+
+          <!-- Two destination paths -->
+          <div style="flex:1;min-width:240px;">
+            <!-- Path 1: Same region -->
+            <div class="path-row" style="border-color:#0a3d2e;">
+              <div class="path-label" style="color:#00b894;">Same region</div>
+              <div class="path-arrow">&#10132;</div>
+              <div class="path-node" style="color:#00b894;border-color:#0a3d2e;background:#0a1f1a;">VOS 360 Transcoder</div>
+              <div class="path-desc">Ingest &mdash; within VPC</div>
+            </div>
+            <!-- Path 2: Cross-region -->
+            <div class="path-row" style="border-color:#3d2e0a;">
+              <div class="path-label" style="color:#f9ca24;">Cross-region</div>
+              <div class="path-arrow">&#10132;</div>
+              <div class="path-node" style="color:#f9ca24;border-color:#3d2e0a;background:#1f1a0a;">LRS Edge</div>
+              <div class="path-arrow">&#10132;</div>
+              <div class="path-node" style="color:#00b894;border-color:#0a3d2e;background:#0a1f1a;">VOS 360</div>
+              <div class="path-desc">Different GCP region</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#4a5568;margin-top:10px;">LRS Edge is created in the same VPC as LRS Source when routing to a different GCP region is required.</div>
+      </div>
+    </div>
+
+    <div class="pipe-note">
+      Each arrow = an SRT connection carrying UDP datagrams inside IP packets.<br>
+      Only the first hop (Customer &rarr; LRS) crosses the public internet and requires NAT traversal.
+    </div>
   </div>
 
   <!-- Packet Encapsulation -->
