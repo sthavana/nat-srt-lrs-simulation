@@ -113,7 +113,7 @@
   </div>
   <div class="desc-body">
     <div class="sim-desc" style="margin-bottom:24px;">
-      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source in a <strong>customer GCP VPC</strong> contributing compressed video (H.264/H.265) through <strong>LRS (Live Routing Service)</strong> in Harmonic's dedicated VPC, routed to <strong>VOS 360</strong> for transcoding.
+      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source pushing compressed video (H.264/H.265) into an <strong>LRS Cloud Source</strong> (ingress), through the <strong>LRS (Live Routing Service)</strong> cloud routing platform, and out via a <strong>Cloud Edge</strong> (egress) to a <strong>VOS 360</strong> cluster for transcoding.
       <br><br>
       Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
     </div>
@@ -141,14 +141,16 @@
         <div class="arrow-sublabel">UDP datagrams</div>
       </div>
 
-      <!-- Harmonic LRS VPC -->
+      <!-- Harmonic LRS (Live Routing Service) -->
       <div class="vpc-box vpc-right">
-        <div class="vpc-label" style="color:#f9ca24;">Harmonic LRS VPC</div>
+        <div class="vpc-label" style="color:#f9ca24;">LRS &mdash; Live Routing Service <span style="color:#4a5568;font-weight:400;text-transform:none;">(Harmonic cloud)</span></div>
         <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
           <!-- LRS Cloud Source -->
-          <div class="node-box" style="border-color:#3d2e0a;flex:0 0 150px;">
-            <div class="node-name" style="color:#f9ca24;">LRS Cloud Source</div>
+          <div class="node-box" style="border-color:#3d2e0a;flex:0 0 160px;">
+            <div class="node-name" style="color:#f9ca24;">Cloud Source</div>
+            <div class="node-sub" style="color:#f9ca24;">Ingress (Pipe)</div>
             <div class="node-sub">SRT Listener</div>
+            <div class="node-sub" style="margin-top:4px;font-size:10px;color:#4a5568;line-height:1.4;">Receives &amp; stabilises<br>the live feed</div>
           </div>
 
           <div style="display:flex;flex-direction:column;justify-content:center;align-self:center;flex-shrink:0;">
@@ -156,32 +158,48 @@
           </div>
 
           <!-- Two destination paths -->
-          <div style="flex:1;min-width:240px;">
+          <div style="flex:1;min-width:280px;">
             <!-- Path 1: Same region -->
             <div class="path-row" style="border-color:#0a3d2e;">
               <div class="path-label" style="color:#00b894;">Same region</div>
               <div class="path-arrow">&#10132;</div>
-              <div class="path-node" style="color:#00b894;border-color:#0a3d2e;background:#0a1f1a;">VOS 360 Transcoder</div>
-              <div class="path-desc">Ingest &mdash; within VPC</div>
+              <div class="path-node" style="color:#00b894;border-color:#0a3d2e;background:#0a1f1a;">VOS 360 Cluster</div>
+              <div class="path-desc">Ingest &amp; Transcode</div>
             </div>
-            <!-- Path 2: Cross-region -->
+            <!-- Path 2: Cross-region via Edge -->
             <div class="path-row" style="border-color:#3d2e0a;">
               <div class="path-label" style="color:#f9ca24;">Cross-region</div>
               <div class="path-arrow">&#10132;</div>
-              <div class="path-node" style="color:#f9ca24;border-color:#3d2e0a;background:#1f1a0a;">LRS Edge</div>
+              <div class="path-node" style="color:#f9ca24;border-color:#3d2e0a;background:#1f1a0a;">Cloud Edge</div>
               <div class="path-arrow">&#10132;</div>
               <div class="path-node" style="color:#00b894;border-color:#0a3d2e;background:#0a1f1a;">VOS 360</div>
               <div class="path-desc">Different GCP region</div>
             </div>
+            <div style="font-size:10px;color:#4a5568;padding:2px 12px;line-height:1.4;">Cloud Edge (egress) is created close to the consuming VOS cluster's region to minimise latency.</div>
           </div>
         </div>
-        <div style="font-size:10px;color:#4a5568;margin-top:10px;">LRS Edge is created in the same VPC as LRS Source when routing to a different GCP region is required.</div>
+      </div>
+    </div>
+
+    <!-- LRS Glossary -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;margin-bottom:4px;">
+      <div style="flex:1;min-width:200px;background:#111620;border:1px solid #1e2738;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#f9ca24;margin-bottom:4px;">LRS <span style="font-weight:400;color:#4a5568;">(Live Routing Service)</span></div>
+        <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">The overall cloud routing platform. Manages ingest points, egress points, admission control, access tokens, routing, and redundancy.</div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#111620;border:1px solid #1e2738;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#f9ca24;margin-bottom:4px;">Cloud Source <span style="font-weight:400;color:#4a5568;">(LRS Source / Pipe)</span></div>
+        <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">Ingress side of LRS. Exposes an SRT ingress URL where the encoder pushes the live feed. Receives, stabilises, and makes the stream available downstream.</div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#111620;border:1px solid #1e2738;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#f9ca24;margin-bottom:4px;">Cloud Edge <span style="font-weight:400;color:#4a5568;">(LRS Edge)</span></div>
+        <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">Egress side of LRS. Exposes an SRT egress URL that downstream systems (VOS clusters, etc.) connect to. Sits close to the consuming cluster's region.</div>
       </div>
     </div>
 
     <div class="pipe-note">
       Each arrow = an SRT connection carrying UDP datagrams inside IP packets.<br>
-      Only the first hop (Customer &rarr; LRS) crosses the public internet and requires NAT traversal.
+      Only the first hop (Customer &rarr; LRS Cloud Source) crosses the public internet and requires NAT traversal.
     </div>
   </div>
 
@@ -246,7 +264,7 @@
     <a class="sim-card" href="nat-simulation.html" style="border-left: 3px solid #f9ca24;">
       <div class="badge" style="color:#f9ca24;">Layer 3 &mdash; Network</div>
       <div class="card-title">NAT / SRT / LRS</div>
-      <div class="card-desc">How SRT sources in a customer VPC connect to LRS through NAT. See Caller/Listener roles, public internet vs VPC-internal routing, and the full VOS 360 pipeline.</div>
+      <div class="card-desc">How SRT sources connect to an LRS Cloud Source through NAT. See Caller/Listener roles, public internet vs cloud-internal routing, and the full VOS 360 / LRS pipeline.</div>
       <div class="card-tabs"><strong>4 tabs:</strong> Packet Flow &bull; NAT Types &bull; SRT Through NAT &bull; VOS 360 / LRS</div>
       <div class="card-arrow">&#10132;</div>
     </a>
