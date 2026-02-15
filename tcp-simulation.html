@@ -1319,7 +1319,7 @@ document.querySelectorAll('.tab').forEach(function(tab){
     }
     if(p.type==='done'){
       activeDupCnt=0;activeRecRow=-1;
-      stats.recoveryRTTs=sackMode?1:(lost.length*3);
+      stats.recoveryRTTs=sackMode?1.5:(lost.length*3);
       if(blockingStart)stats.blocked=Math.round(performance.now()-blockingStart)+' ms';
       readPtr=TOTAL;
       for(var i=0;i<TOTAL;i++)recvBuf[i]='received';
