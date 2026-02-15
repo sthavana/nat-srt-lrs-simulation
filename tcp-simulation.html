@@ -1503,6 +1503,14 @@ document.querySelectorAll('.tab').forEach(function(tab){
   // lifeline fractions
   var TSX=0.06,TRX=0.38,USX=0.58,URX=0.92;
 
+  // mouse hover for tooltips
+  var cmpHover=null;
+  canvas.addEventListener('mousemove',function(e){
+    var r=canvas.getBoundingClientRect();
+    cmpHover={x:e.clientX-r.left,y:e.clientY-r.top};
+  });
+  canvas.addEventListener('mouseleave',function(){cmpHover=null;});
+
   // state
   var running=false,paused=false,gTime=0,prevT=performance.now();
   var lossPat=[];
@@ -1626,7 +1634,7 @@ document.querySelectorAll('.tab').forEach(function(tab){
           if(tcp.dupCnt>=3&&!tcp.recovering){
             tcp.recovering=true;tcp.recSeq=ackN;
             tcp.wSize=Math.max(2,Math.floor(tcp.wSize/2));
-            addEv('[TCP] 3 DUP ACKs! Fast Retransmit SEQ '+ackN+'. CWND '+tcp.wSize,'#f9ca24');
+            addEv('[TCP] 3 DUP ACKs! Fast Retransmit SEQ '+ackN+'. CWND: '+tcp.wSize,'#f9ca24');
           }
         }
       }
@@ -1671,17 +1679,10 @@ document.querySelectorAll('.tab').forEach(function(tab){
         }
       }
     }
-    // HOL blocking tracking
-    var hasGap=false;
-    for(var i=0;i<TOTAL;i++){
-      if(!tcp.delivered[i]){
-        // check if anything after this is delivered
-        for(var j=i+1;j<TOTAL;j++){if(tcp.delivered[j]){hasGap=true;break;}}
-        break;
-      }
-    }
-    if(hasGap&&!tcp.blocking){tcp.blocking=true;tcp.holStart=gTime;}
-    if(!hasGap&&tcp.blocking){tcp.holMs+=gTime-tcp.holStart;tcp.blocking=false;}
+    // HOL blocking: starts when recovery begins (DUP ACKs detected),
+    // ends when recovery completes and gap is filled
+    if(tcp.recovering&&!tcp.blocking){tcp.blocking=true;tcp.holStart=gTime;}
+    if(!tcp.recovering&&tcp.blocking){tcp.holMs+=gTime-tcp.holStart;tcp.blocking=false;}
     // check done
     if(!tcp.done){
       var all=true;for(var i=0;i<TOTAL;i++){if(!tcp.delivered[i]){all=false;break;}}
@@ -1869,6 +1870,16 @@ document.querySelectorAll('.tab').forEach(function(tab){
       ctx.fillStyle='#1e2738';rr(ctx,tsx-40,BAR_Y-40,80,22,4);ctx.fill();
       ctx.fillStyle=tcp.wSize<4?'#f9ca24':'#4ecdc4';ctx.font='bold 10px system-ui';ctx.textAlign='center';
       ctx.fillText('CWND: '+tcp.wSize,tsx,BAR_Y-25);
+      // tooltip on hover
+      if(cmpHover&&cmpHover.x>=tsx-40&&cmpHover.x<=tsx+40&&cmpHover.y>=BAR_Y-40&&cmpHover.y<=BAR_Y-18){
+        var tx=tsx+50,ty=BAR_Y-50;
+        ctx.fillStyle='#1a1f2e';rr(ctx,tx-4,ty-14,220,38,6);ctx.fill();
+        ctx.strokeStyle='#4ecdc4';ctx.lineWidth=1;rr(ctx,tx-4,ty-14,220,38,6);ctx.stroke();
+        ctx.fillStyle='#c8d6e5';ctx.font='bold 10px system-ui';ctx.textAlign='left';
+        ctx.fillText('Congestion Window (CWND)',tx+4,ty);
+        ctx.fillStyle='#8899aa';ctx.font='10px system-ui';
+        ctx.fillText('Max segments in flight. Halves on loss.',tx+4,ty+14);
+      }
     }
 
     // delivery bars
