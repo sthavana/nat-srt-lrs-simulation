@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Video Transport &mdash; Protocol Simulations</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+
+  .content { max-width: 1100px; margin: 0 auto; padding: 30px; }
+
+  .section-label { font-size: 12px; color: #6b7b8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+  /* collapsible (matches simulation tabs) */
+  .desc-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 4px; user-select: none; }
+  .desc-toggle:hover { background: #111620; }
+  .desc-toggle .arrow { font-size: 10px; color: #4ecdc4; transition: transform 0.2s; }
+  .desc-toggle.open .arrow { transform: rotate(90deg); }
+  .desc-toggle .toggle-title { font-size: 13px; font-weight: 600; color: #4ecdc4; }
+  .desc-toggle .toggle-hint { font-size: 11px; color: #4a5568; margin-left: auto; }
+  .desc-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .desc-body.open { max-height: 2000px; }
+
+  .sim-desc { font-size: 14px; color: #6b7b8d; line-height: 1.7; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; }
+  .sim-desc strong { color: #c8d6e5; }
+
+  /* pipeline diagram */
+  .diagram-wrapper { background: #0d1117; border-radius: 12px; border: 1px solid #1e2738; padding: 24px; margin-bottom: 24px; overflow-x: auto; }
+  .diagram-pre { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.7; color: #8899aa; white-space: pre; }
+  .diagram-pre .teal { color: #4ecdc4; }
+  .diagram-pre .yellow { color: #f9ca24; }
+  .diagram-pre .blue { color: #6c8cff; }
+  .diagram-pre .green { color: #00b894; }
+  .diagram-pre .red { color: #ff6b6b; }
+  .diagram-pre .muted { color: #4a5568; }
+  .diagram-pre .white { color: #c8d6e5; }
+
+  /* encapsulation box */
+  .encap-box { background: #111620; border: 1px solid #1e2738; border-radius: 8px; padding: 16px 20px; margin-top: 16px; }
+  .encap-pre { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.8; color: #8899aa; white-space: pre; }
+
+  /* terminology */
+  .term-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+  .term-item { flex: 1; min-width: 200px; background: #111620; border: 1px solid #1e2738; border-radius: 8px; padding: 12px 16px; }
+  .term-item .term-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .term-item .term-desc { font-size: 12px; color: #6b7b8d; line-height: 1.5; }
+
+  /* learning path */
+  .path-bar { display: flex; align-items: center; gap: 0; margin-bottom: 32px; flex-wrap: wrap; justify-content: center; }
+  .step-card { flex: 0 1 240px; background: #111620; border: 1px solid #1e2738; border-radius: 10px; padding: 16px 20px; text-align: center; }
+  .step-num { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #4ecdc4; color: #4ecdc4; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+  .step-title { font-size: 16px; font-weight: 700; color: #e8ecf1; }
+  .step-layer { font-size: 11px; color: #6b7b8d; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .step-q { font-size: 12px; color: #4ecdc4; margin-top: 8px; font-style: italic; }
+  .step-arrow { color: #2a3040; font-size: 24px; padding: 0 12px; flex-shrink: 0; }
+
+  /* simulation cards */
+  .sim-cards { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 32px; }
+  .sim-card { flex: 1; min-width: 280px; background: #111620; border: 1px solid #1e2738; border-radius: 12px; padding: 24px; text-decoration: none; color: inherit; transition: all 0.2s; display: block; position: relative; }
+  .sim-card:hover { border-color: #4ecdc4; box-shadow: 0 0 20px rgba(78,205,196,0.08); transform: translateY(-2px); }
+  .sim-card .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .sim-card .card-title { font-size: 18px; font-weight: 700; color: #e8ecf1; margin-bottom: 10px; }
+  .sim-card .card-desc { font-size: 13px; color: #6b7b8d; line-height: 1.6; margin-bottom: 12px; }
+  .sim-card .card-tabs { font-size: 11px; color: #4a5568; line-height: 1.5; }
+  .sim-card .card-tabs strong { color: #6b7b8d; }
+  .sim-card .card-arrow { position: absolute; bottom: 16px; right: 20px; font-size: 18px; color: #2a3040; transition: color 0.2s; }
+  .sim-card:hover .card-arrow { color: #4ecdc4; }
+
+  /* footnote */
+  .footnote { font-size: 13px; color: #8899aa; line-height: 1.7; padding: 16px 20px; background: #111620; border-radius: 8px; border: 1px solid #1e2738; margin-bottom: 24px; }
+  .footnote strong { color: #c8d6e5; }
+
+  /* footer */
+  .footer { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 16px 30px; border-top: 1px solid #2a3040; text-align: center; font-size: 12px; color: #4a5568; }
+
+  @media (max-width: 700px) {
+    .path-bar { flex-direction: column; align-items: stretch; }
+    .step-arrow { transform: rotate(90deg); text-align: center; padding: 4px 0; }
+    .sim-cards { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>Live Video Transport</span> &mdash; Protocol Simulations</h1>
+</div>
+
+<div class="content">
+
+  <!-- Introduction -->
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">About These Simulations</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc" style="margin-bottom:24px;">
+      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source contributing compressed video (H.264/H.265) through <strong>LRS (Live Routing Service)</strong> cloud routing to transcoding via <strong>VOS 360</strong>.
+      <br><br>
+      Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
+    </div>
+  </div>
+
+  <!-- Pipeline Diagram -->
+  <div class="section-label" style="margin-top:24px;">The VOS 360 / LRS Pipeline</div>
+  <div class="diagram-wrapper">
+    <div class="diagram-pre"><span class="teal">SRT Source</span>              <span class="yellow">LRS Cloud Source</span>         <span class="yellow">LRS Cloud Edge</span>          <span class="green">Transcoder</span>
+<span class="muted">(Encoder:</span>                <span class="muted">(Azure VM:</span>               <span class="muted">(Azure VM:</span>              <span class="muted">(VOS 360</span>
+<span class="muted"> H.264/H.265)</span>            <span class="muted"> Listener)</span>               <span class="muted"> Listener/Caller)</span>       <span class="muted"> Ingest)</span>
+<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span><span class="teal">--- SRT (Caller) ------&gt;</span><span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>   <span class="blue">UDP datagrams</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>   <span class="red">NAT traversal</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>   <span class="muted">over internet</span>        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>                        <span class="white">|</span><span class="yellow">--- SRT (Caller) ----------&gt;</span><span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>                        <span class="white">|</span>   <span class="blue">Azure VNet / ExpressRoute</span> <span class="white">|</span>                       <span class="white">|</span>
+<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span><span class="green">--- SRT (Caller) -----&gt;</span><span class="white">|</span>
+<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>   <span class="muted">to Ingest VM</span>       <span class="white">|</span>
+<span class="white">    |</span>                        <span class="white">|</span>                            <span class="white">|</span>                       <span class="white">|</span>
+
+<span class="muted">Each arrow = an SRT connection carrying UDP datagrams inside IP packets.</span>
+<span class="muted">The simulations below explain what happens inside each hop.</span></div>
+  </div>
+
+  <!-- Packet Encapsulation -->
+  <div class="section-label">What Travels Inside Each SRT Hop</div>
+  <div class="encap-box">
+    <div class="encap-pre"><span class="teal">Compressed Video Frame</span> <span class="muted">(H.264/H.265 NAL units / MPEG-TS)</span>
+  <span class="white">&#9492;&#9472;</span> <span class="yellow">L4:</span> SRT Datagram <span class="muted">(UDP + SRT header, ~1316 bytes payload = 7 x 188 TS pkts)</span>
+      <span class="white">&#9492;&#9472;</span> <span class="blue">L3:</span> IP Packet <span class="muted">(src/dst IP &mdash; NAT rewrites source address here)</span>
+          <span class="white">&#9492;&#9472;</span> <span class="muted">L2:</span> Ethernet Frame <span class="muted">(MAC addresses, changes at every router hop)</span></div>
+  </div>
+
+  <!-- Terminology -->
+  <div class="term-grid">
+    <div class="term-item">
+      <div class="term-name" style="color:#6c8cff;">Segment <span style="color:#4a5568;">= TCP (Layer 4)</span></div>
+      <div class="term-desc">TCP's data unit. Carries seq/ack numbers for reliable, ordered delivery. <strong style="color:#6c8cff;">See TCP Simulation</strong></div>
+    </div>
+    <div class="term-item">
+      <div class="term-name" style="color:#4ecdc4;">Datagram <span style="color:#4a5568;">= UDP/SRT (Layer 4)</span></div>
+      <div class="term-desc">UDP's data unit. No built-in reliability &mdash; SRT adds its own on top. <strong style="color:#4ecdc4;">See SRT Simulation</strong></div>
+    </div>
+    <div class="term-item">
+      <div class="term-name" style="color:#f9ca24;">Packet <span style="color:#4a5568;">= IP (Layer 3)</span></div>
+      <div class="term-desc">The routable unit. NAT rewrites source IP/port at this layer. <strong style="color:#f9ca24;">See NAT Simulation</strong></div>
+    </div>
+    <div class="term-item">
+      <div class="term-name" style="color:#6b7b8d;">Frame <span style="color:#4a5568;">= Ethernet (Layer 2)</span></div>
+      <div class="term-desc">Hop-by-hop delivery. MAC addresses change at every router; IP addresses don't (except NAT).</div>
+    </div>
+  </div>
+
+  <!-- Learning Path -->
+  <div class="section-label" style="margin-top:32px;">Recommended Learning Path</div>
+  <div class="path-bar">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-title">NAT</div>
+      <div class="step-layer">Layer 3 &mdash; Network</div>
+      <div class="step-q">"How does the SRT source reach LRS through NAT?"</div>
+    </div>
+    <div class="step-arrow">&#10132;</div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-title">TCP</div>
+      <div class="step-layer">Layer 4 &mdash; Transport</div>
+      <div class="step-q">"Why not just use TCP for video transport?"</div>
+    </div>
+    <div class="step-arrow">&#10132;</div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-title">SRT</div>
+      <div class="step-layer">Layer 4 &mdash; over UDP</div>
+      <div class="step-q">"How SRT delivers broadcast-quality video"</div>
+    </div>
+  </div>
+
+  <!-- Simulation Cards -->
+  <div class="section-label">Interactive Simulations</div>
+  <div class="sim-cards">
+
+    <a class="sim-card" href="nat-simulation.html" style="border-left: 3px solid #f9ca24;">
+      <div class="badge" style="color:#f9ca24;">Layer 3 &mdash; Network</div>
+      <div class="card-title">NAT / SRT / LRS</div>
+      <div class="card-desc">How SRT sources connect to LRS through NAT. See Caller/Listener roles, ExpressRoute vs public internet, and the full VOS 360 pipeline routing.</div>
+      <div class="card-tabs"><strong>4 tabs:</strong> Packet Flow &bull; NAT Types &bull; SRT Through NAT &bull; VOS 360 / LRS</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+    <a class="sim-card" href="tcp-simulation.html" style="border-left: 3px solid #6c8cff;">
+      <div class="badge" style="color:#6c8cff;">Layer 4 &mdash; Transport</div>
+      <div class="card-title">TCP Fundamentals</div>
+      <div class="card-desc">Why TCP's reliability model breaks live video &mdash; head-of-line blocking, retransmission delays, congestion backoff. Then see TCP vs UDP side-by-side.</div>
+      <div class="card-tabs"><strong>5 tabs:</strong> 3-Way Handshake &bull; Transmission &amp; ACK &bull; Retransmission &bull; SACK &amp; Limitations &bull; TCP vs UDP</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+    <a class="sim-card" href="srt-simulation.html" style="border-left: 3px solid #00b894;">
+      <div class="badge" style="color:#00b894;">Layer 4 &mdash; Transport (over UDP)</div>
+      <div class="card-title">SRT Protocol</div>
+      <div class="card-desc">How SRT delivers broadcast-quality video: timestamp-based delivery (TSBPD), NAK-based retransmission (ARQ), and clock drift correction.</div>
+      <div class="card-tabs"><strong>3 tabs:</strong> TSBPD Packet Delivery &bull; ARQ Retransmission &bull; Clock Drift</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+  </div>
+
+  <!-- Footnote -->
+  <div class="footnote">
+    <strong>Why terminology matters:</strong> When broadcast engineers say "packet loss," they typically mean loss at Layer 3 (IP packets dropped by congested routers). But SRT operates at Layer 4 &mdash; it sends UDP datagrams containing SRT-framed data, encapsulated inside IP packets. The "packets" in the SRT simulation are technically UDP datagrams inside IP packets. The distinction matters when diagnosing issues &mdash; a network engineer checking router queues sees IP packets, while <code style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;color:#4ecdc4;background:#1e2738;padding:1px 5px;border-radius:3px;">srt-live-transmit</code> statistics report SRT-level datagram loss.
+  </div>
+
+</div>
+
+<div class="footer">
+  Built for broadcast engineers learning live video transport
+</div>
+
+</body>
+</html>
