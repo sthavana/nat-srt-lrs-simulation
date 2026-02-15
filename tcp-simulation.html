@@ -1522,7 +1522,7 @@ document.querySelectorAll('.tab').forEach(function(tab){
   function mkTcp(){return{phase:0,hsPkts:[],hsTimer:0,pkts:[],acks:[],nextSeq:1,
     wBase:1,wSize:4,sent:0,del:0,retx:0,holMs:0,done:false,doneT:0,startT:0,
     delivered:newArr(TOTAL,false),dupCnt:0,recovering:false,recSeq:0,
-    sendTmr:0,holStart:0,blocking:false};}
+    sendTmr:0,holStart:0,blocking:false,rtoTimer:0};}
   function mkUdp(){return{pkts:[],nextSeq:1,sent:0,del:0,lost:0,gaps:0,
     done:false,doneT:0,startT:0,delivered:newArr(TOTAL,false),sendTmr:0};}
   function newArr(n,v){var a=[];for(var i=0;i<n;i++)a.push(v);return a;}
@@ -1672,13 +1672,37 @@ document.querySelectorAll('.tab').forEach(function(tab){
         tcp.del=cnt;
         tcp.wBase=cnt+1;
         addEv('[TCP] SEQ '+tcp.recSeq+' recovered. Delivered: '+tcp.del+'/'+TOTAL,'#a29bfe');
-        // check if more losses ahead
+        tcp.rtoTimer=0;
+        // immediately check for next gap — if later packets already received, start recovery now
         if(tcp.del<TOTAL){
-          var nextLoss=-1;
-          for(var i=tcp.wBase-1;i<TOTAL;i++){if(lossPat[i]&&!tcp.delivered[i]){nextLoss=i+1;break;}}
+          var nextMissing=-1;
+          for(var i=0;i<TOTAL;i++){if(!tcp.delivered[i]){nextMissing=i+1;break;}}
+          if(nextMissing>0&&lossPat[nextMissing-1]){
+            // already know it's lost, check if any later packets arrived
+            var hasLater=false;
+            for(var j=nextMissing;j<TOTAL;j++){if(tcp.delivered[j]){hasLater=true;break;}}
+            if(hasLater){
+              tcp.recovering=true;tcp.recSeq=nextMissing;
+              tcp.wSize=Math.max(2,Math.floor(tcp.wSize/2));
+              addEv('[TCP] Gap detected! Retransmitting SEQ '+nextMissing+'. CWND: '+tcp.wSize,'#f9ca24');
+            }
+          }
         }
       }
     }
+    // RTO fallback: if sender is stalled (not recovering, unsent or unacked packets remain), force retransmit
+    if(!tcp.recovering&&!tcp.done&&tcp.phase>=3){
+      tcp.rtoTimer=(tcp.rtoTimer||0)+dt;
+      if(tcp.rtoTimer>4000){
+        tcp.rtoTimer=0;
+        var missing=-1;
+        for(var i=0;i<TOTAL;i++){if(!tcp.delivered[i]){missing=i+1;break;}}
+        if(missing>0){
+          tcp.recovering=true;tcp.recSeq=missing;tcp.dupCnt=0;
+          addEv('[TCP] RTO expired! Retransmitting SEQ '+missing,'#ff6b6b');
+        }
+      }
+    } else { tcp.rtoTimer=0; }
     // HOL blocking: starts when recovery begins (DUP ACKs detected),
     // ends when recovery completes and gap is filled
     if(tcp.recovering&&!tcp.blocking){tcp.blocking=true;tcp.holStart=gTime;}
