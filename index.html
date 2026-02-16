@@ -113,9 +113,9 @@
   </div>
   <div class="desc-body">
     <div class="sim-desc" style="margin-bottom:24px;">
-      These interactive simulations explain the protocols behind <strong>live video transport</strong> &mdash; from an SRT source pushing compressed video (H.264/H.265) into an <strong>LRS Cloud Source</strong> (ingress), through the <strong>LRS (Live Routing Service)</strong> cloud routing platform, and out via a <strong>Cloud Edge</strong> (egress) to a <strong>VOS 360</strong> cluster for transcoding.
+      These interactive simulations explain the protocols behind <strong>live video transport</strong> in the VOS 360 / LRS pipeline. An <strong>SRT source</strong> pushes compressed video (H.264/H.265) over the public internet into an <strong>LRS Cloud Source</strong> (ingress), where the live feed is received and stabilised. From there, <strong>LRS</strong> routes the stream directly to a <strong>VOS 360</strong> cluster for transcoding &mdash; or via a <strong>Cloud Edge</strong> (egress) when the cluster is in a different GCP region.
       <br><br>
-      Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
+      Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal on the first hop, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
     </div>
   </div>
 
