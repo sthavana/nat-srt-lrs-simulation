@@ -332,13 +332,13 @@
 
   <!-- Footnote -->
   <div class="footnote">
-    <strong>Why terminology matters:</strong> When broadcast engineers say "packet loss," they typically mean loss at Layer 3 (IP packets dropped by congested routers). But SRT operates at Layer 4 &mdash; it sends UDP datagrams containing SRT-framed data, encapsulated inside IP packets. The "packets" in the SRT simulation are technically UDP datagrams inside IP packets. The distinction matters when diagnosing issues &mdash; a network engineer checking router queues sees IP packets, while <code style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;color:#4ecdc4;background:#1e2738;padding:1px 5px;border-radius:3px;">srt-live-transmit</code> statistics report SRT-level datagram loss.
+    <strong>Why terminology matters:</strong> When streaming engineers say "packet loss," they typically mean loss at Layer 3 (IP packets dropped by congested routers). But SRT operates at Layer 4 &mdash; it sends UDP datagrams containing SRT-framed data, encapsulated inside IP packets. The "packets" in the SRT simulation are technically UDP datagrams inside IP packets. The distinction matters when diagnosing issues &mdash; a network engineer checking router queues sees IP packets, while <code style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;color:#4ecdc4;background:#1e2738;padding:1px 5px;border-radius:3px;">srt-live-transmit</code> statistics report SRT-level datagram loss.
   </div>
 
 </div>
 
 <div class="footer">
-  Built for broadcast engineers learning live video transport
+  Built for streaming engineers learning live video transport
 </div>
 
 </body>
