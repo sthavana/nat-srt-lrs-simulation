@@ -275,6 +275,39 @@
     </div>
   </div>
 
+  <!-- Frame / MAC explanation -->
+  <div class="desc-toggle" style="margin-top:8px;border-left-color:#6b7b8d;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title" style="color:#6b7b8d;">Why do MAC addresses change at every hop but IP addresses don't?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:16px;background:#0d1117;border-radius:8px;border-left:3px solid #6b7b8d;">
+
+      <strong style="color:#c8d6e5;">IP addresses = end-to-end (the postal address)</strong><br>
+      The source and destination IP addresses stay the <strong style="color:#c8d6e5;">same</strong> for the entire journey. Every router reads the destination IP to decide where to forward the packet next. The only exception is NAT, which rewrites the source IP.
+
+      <br><br>
+      <strong style="color:#c8d6e5;">MAC addresses = hop-by-hop (the delivery driver)</strong><br>
+      Ethernet frames only work between <strong style="color:#c8d6e5;">directly connected devices</strong> (on the same wire or switch). At every router, the incoming Ethernet frame is stripped off and a <strong style="color:#4ecdc4;">new one</strong> is created with the router's own MAC as source and the next hop's MAC as destination.
+
+      <br><br>
+      <strong style="color:#c8d6e5;">Example &mdash; SRT Source to LRS Cloud Source:</strong>
+      <div style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:11px;line-height:1.7;background:#111620;border:1px solid #1e2738;border-radius:6px;padding:12px 14px;margin:10px 0;overflow-x:auto;white-space:pre;">SRT Source <span style="color:#4a5568;">(MAC: AA)</span>  &rarr;  Router1 <span style="color:#4a5568;">(MAC: BB, CC)</span>  &rarr;  Router2 <span style="color:#4a5568;">(MAC: DD, EE)</span>  &rarr;  LRS <span style="color:#4a5568;">(MAC: FF)</span>
+
+<span style="color:#4ecdc4;">Hop 1:</span>  Ethernet: <span style="color:#f9ca24;">src=AA  dst=BB</span>    IP: <span style="color:#4ecdc4;">src=10.0.1.5  dst=34.100.2.8</span>
+        <span style="color:#4a5568;">&uarr; "deliver to Router1"</span>          <span style="color:#4a5568;">&uarr; "ultimately going to LRS"</span>
+
+<span style="color:#4ecdc4;">Hop 2:</span>  Ethernet: <span style="color:#f9ca24;">src=CC  dst=DD</span>    IP: <span style="color:#4ecdc4;">src=10.0.1.5  dst=34.100.2.8</span>
+        <span style="color:#ff6b6b;">&uarr; NEW MACs (router's own)</span>      <span style="color:#00b894;">&uarr; SAME IPs (unchanged)</span>
+
+<span style="color:#4ecdc4;">Hop 3:</span>  Ethernet: <span style="color:#f9ca24;">src=EE  dst=FF</span>    IP: <span style="color:#4ecdc4;">src=10.0.1.5  dst=34.100.2.8</span>
+        <span style="color:#ff6b6b;">&uarr; NEW MACs again</span>              <span style="color:#00b894;">&uarr; STILL the same IPs</span></div>
+
+      <strong style="color:#c8d6e5;">In short:</strong> IP addresses are the <strong style="color:#4ecdc4;">postal address</strong> on the envelope (stays the same end-to-end). MAC addresses are the <strong style="color:#f9ca24;">delivery driver</strong> handing it off at each stop (changes every hop). Routers bridge these local Ethernet segments together to form the internet.
+    </div>
+  </div>
+
   <!-- Learning Path -->
   <div class="section-label" style="margin-top:32px;">Recommended Learning Path</div>
   <div class="path-bar">
