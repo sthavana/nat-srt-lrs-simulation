@@ -145,7 +145,7 @@
   </div>
   <div class="desc-body">
     <div class="sim-desc" style="margin-bottom:24px;">
-      These interactive simulations explain the protocols behind <strong>live video transport</strong> in the VOS 360 / LRS pipeline. An <strong>SRT source</strong> pushes compressed video (H.264/H.265) over the public internet into an <strong>LRS Cloud Source</strong> (ingress), where the live feed is received and stabilised. From there, <strong>LRS</strong> routes the stream directly to a <strong>VOS 360</strong> cluster for transcoding &mdash; or via a <strong>Cloud Edge</strong> (egress) when the cluster is in a different GCP region.
+      These interactive simulations explain the protocols behind <strong>live video transport</strong> in the VOS 360 / LRS pipeline. An <strong>SRT source</strong> pushes compressed video (H.264/H.265) over the public internet into an <strong>LRS Cloud Source</strong> (ingress), where the live feed is received, buffered, and recovered. From there, <strong>LRS</strong> routes the stream directly to a <strong>VOS 360</strong> cluster for transcoding &mdash; or via a <strong>Cloud Edge</strong> (egress) when the cluster is in a different GCP region.
       <br><br>
       Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal on the first hop, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
     </div>
@@ -182,7 +182,7 @@
             <div class="node-name" style="color:#f9ca24;">Cloud Source</div>
             <div class="node-sub" style="color:#f9ca24;">Ingress (Pipe)</div>
             <div class="node-sub">SRT Listener</div>
-            <div class="node-sub" style="margin-top:4px;font-size:10px;color:#4a5568;line-height:1.4;">Receives &amp; stabilises<br>the live feed</div>
+            <div class="node-sub" style="margin-top:4px;font-size:10px;color:#4a5568;line-height:1.4;">Receives, buffers &amp;<br>recovers the live feed</div>
           </div>
 
           <div style="display:flex;flex-direction:column;justify-content:center;align-self:center;flex-shrink:0;">
@@ -221,7 +221,7 @@
       </div>
       <div style="flex:1;min-width:200px;background:#111620;border:1px solid #1e2738;border-radius:8px;padding:10px 14px;">
         <div style="font-size:12px;font-weight:700;color:#f9ca24;margin-bottom:4px;">Cloud Source <span style="font-weight:400;color:#4a5568;">(LRS Source / Pipe)</span></div>
-        <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">Ingress side of LRS. Exposes an SRT ingress URL where the encoder pushes the live feed. Receives, stabilises, and makes the stream available downstream.</div>
+        <div style="font-size:11px;color:#6b7b8d;line-height:1.5;">Ingress side of LRS. Exposes an SRT ingress URL where the encoder pushes the live feed. Receives, buffers (TSBPD), recovers lost packets (ARQ), and makes the stream available downstream.</div>
       </div>
       <div style="flex:1;min-width:200px;background:#111620;border:1px solid #1e2738;border-radius:8px;padding:10px 14px;">
         <div style="font-size:12px;font-weight:700;color:#f9ca24;margin-bottom:4px;">Cloud Edge <span style="font-weight:400;color:#4a5568;">(LRS Edge)</span></div>
@@ -414,10 +414,10 @@
           <div class="fj-card" style="border-left:3px solid #f9ca24;">
             <div class="fj-card-header">
               <span class="fj-component" style="color:#f9ca24;">LRS Cloud Source (Ingress)</span>
-              <span class="fj-sublabel">Receive &amp; Stabilise</span>
+              <span class="fj-sublabel">Receive, Buffer &amp; Recover</span>
             </div>
             <div class="fj-desc">
-              Outer layers are peeled off: Ethernet stripped, IP unwrapped, UDP extracted. The <strong>SRT layer</strong> takes over: checks packet sequence numbers, places the datagram into the <strong>TSBPD buffer</strong> at its correct timestamp position, and triggers <strong>ARQ (NAK-based retransmission)</strong> if any packets were lost in transit. The stream is stabilised and ready for internal delivery.
+              Outer layers are peeled off: Ethernet stripped, IP unwrapped, UDP extracted. The <strong>SRT layer</strong> takes over: checks packet sequence numbers, places the datagram into the <strong>TSBPD buffer</strong> at its correct timestamp position, and triggers <strong>ARQ (NAK-based retransmission)</strong> if any packets were lost in transit. The stream is buffered, recovered, and ready for internal delivery.
             </div>
             <div class="fj-layers">
               <div class="fj-layer fj-layer-ethernet fj-layer-stripped">L2: Ethernet &mdash; stripped</div>
