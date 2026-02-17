@@ -290,13 +290,13 @@
   <!-- Life of a Frame -->
   <div class="desc-toggle" style="margin-top:16px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
     <span class="arrow">&#9654;</span>
-    <span class="toggle-title">Life of a Frame &mdash; From Camera to Transcoder</span>
+    <span class="toggle-title">Life of a Frame &mdash; From Studio to Transcoder</span>
     <span class="toggle-hint">click to expand</span>
   </div>
   <div class="desc-body desc-body-tall">
     <div style="padding:16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
       <div style="font-size:12px;color:#6b7b8d;margin-bottom:16px;line-height:1.6;">
-        Follow a single encoded video frame as it travels from the camera through NAT, across the public internet, into LRS Cloud Source, and finally to VOS 360 for transcoding. At each stage, watch the encapsulation layers being added or removed.
+        Follow a single encoded video frame as it travels from the studio through NAT, across the public internet, into LRS Cloud Source, and finally to VOS 360 for transcoding. At each stage, watch the encapsulation layers being added or removed.
       </div>
 
       <div class="frame-journey">
@@ -307,10 +307,10 @@
           <div class="fj-card">
             <div class="fj-card-header">
               <span class="fj-component" style="color:#4ecdc4;">Encoder (SRT Source)</span>
-              <span class="fj-sublabel">Camera &rarr; Compressed Frame</span>
+              <span class="fj-sublabel">Studio &rarr; Compressed Frame</span>
             </div>
             <div class="fj-desc">
-              Camera captures a raw frame. The encoder compresses it into <strong>H.264/H.265 NAL units</strong>, then packetizes those NAL units into <strong>MPEG-TS packets</strong> &mdash; 7 &times; 188 bytes = <strong>1,316 bytes</strong> of payload, ready for transport.
+              The studio feed provides a raw frame. The encoder compresses it into <strong>H.264/H.265 NAL units</strong>, then packetizes those NAL units into <strong>MPEG-TS packets</strong> &mdash; 7 &times; 188 bytes = <strong>1,316 bytes</strong> of payload, ready for transport.
             </div>
             <div class="fj-layers">
               <div class="fj-layer fj-layer-mpegts">
