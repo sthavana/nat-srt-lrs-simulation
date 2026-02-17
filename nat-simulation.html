@@ -60,7 +60,15 @@
   .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8899aa; }
   .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
 
-  /* Description */
+  /* Description (collapsible) */
+  .desc-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 4px; user-select: none; }
+  .desc-toggle:hover { background: #111620; }
+  .desc-toggle .arrow { font-size: 10px; color: #4ecdc4; transition: transform 0.2s; }
+  .desc-toggle.open .arrow { transform: rotate(90deg); }
+  .desc-toggle .toggle-title { font-size: 13px; font-weight: 600; color: #4ecdc4; }
+  .desc-toggle .toggle-hint { font-size: 11px; color: #4a5568; margin-left: auto; }
+  .desc-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .desc-body.open { max-height: 2000px; }
   .sim-desc { font-size: 14px; color: #6b7b8d; line-height: 1.6; margin-bottom: 16px; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; }
 
   /* Toggle switch */
@@ -114,8 +122,15 @@
 
 <!-- ==================== TAB 1: NAT PACKET FLOW ==================== -->
 <div class="sim-container active" id="sim-flow">
-  <div class="sim-desc">
-    <strong>NAT Packet Flow</strong> — Watch how a NAT router rewrites packet source addresses for outbound traffic, maintains a translation table, and blocks unsolicited inbound packets that have no matching entry. The translation table entries expire after a timeout unless refreshed by traffic.
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">NAT Packet Flow</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc">
+      Watch how a NAT router rewrites packet source addresses for outbound traffic, maintains a translation table, and blocks unsolicited inbound packets that have no matching entry. The translation table entries expire after a timeout unless refreshed by traffic.
+    </div>
   </div>
   <div class="controls">
     <div class="control-group">
@@ -179,8 +194,15 @@
 
 <!-- ==================== TAB 2: NAT TYPES ==================== -->
 <div class="sim-container" id="sim-types">
-  <div class="sim-desc">
-    <strong>NAT Types</strong> — See how the 4 NAT types differ in what return traffic they permit through an existing mapping. After the internal device sends to Server A, watch which test packets from various external sources are allowed or blocked.
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">NAT Types</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc">
+      See how the 4 NAT types differ in what return traffic they permit through an existing mapping. After the internal device sends to Server A, watch which test packets from various external sources are allowed or blocked.
+    </div>
   </div>
   <div class="controls">
     <div class="control-group" style="min-width: 420px;">
@@ -245,8 +267,15 @@
 
 <!-- ==================== TAB 3: SRT THROUGH NAT ==================== -->
 <div class="sim-container" id="sim-srt">
-  <div class="sim-desc">
-    <strong>SRT Through NAT</strong> — See how SRT's connection modes (Caller/Listener and Rendezvous) interact with NAT. Choosing the right mode is critical: the Caller must be behind NAT so its outbound handshake creates the mapping that allows the Listener's response back in.
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">SRT Through NAT</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc">
+      See how SRT's connection modes (Caller/Listener and Rendezvous) interact with NAT. Choosing the right mode is critical: the Caller must be behind NAT so its outbound handshake creates the mapping that allows the Listener's response back in.
+    </div>
   </div>
   <div class="controls">
     <div class="control-group" style="min-width: 520px;">
@@ -286,8 +315,15 @@
 
 <!-- ==================== TAB 4: VOS 360 / LRS ==================== -->
 <div class="sim-container" id="sim-lrs">
-  <div class="sim-desc">
-    <strong>VOS 360 / LRS (Live Routing Service)</strong> — See how SRT streams flow through the Harmonic VOS 360 pipeline. LRS VMs in Azure act as SRT relay nodes with two roles: <em>Cloud Source</em> (receives from encoders) and <em>Cloud Edge</em> (forwards to Ingest). By default, LRS is a <strong>Listener</strong> with a URL:port for external sources to connect to. However, LRS CS/CE can also be configured as <strong>Caller</strong> when needed.
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">VOS 360 / LRS (Live Routing Service)</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc">
+      See how SRT streams flow through the Harmonic VOS 360 pipeline. LRS VMs in Azure act as SRT relay nodes with two roles: <em>Cloud Source</em> (receives from encoders) and <em>Cloud Edge</em> (forwards to Ingest). By default, LRS is a <strong>Listener</strong> with a URL:port for external sources to connect to. However, LRS CS/CE can also be configured as <strong>Caller</strong> when needed.
+    </div>
   </div>
   <div class="controls">
     <div class="control-group" style="min-width: 560px;">
