@@ -83,6 +83,34 @@
   .sim-card .card-arrow { position: absolute; bottom: 16px; right: 20px; font-size: 18px; color: #2a3040; transition: color 0.2s; }
   .sim-card:hover .card-arrow { color: #4ecdc4; }
 
+  /* Life of a Frame timeline */
+  .frame-journey { position: relative; padding: 20px 0 20px 40px; margin-top: 16px; }
+  .frame-journey::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #4ecdc4, #4ecdc440); }
+  .fj-stage { position: relative; margin-bottom: 24px; }
+  .fj-stage:last-child { margin-bottom: 0; }
+  .fj-dot { position: absolute; left: -33px; top: 12px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #4ecdc4; background: #0a0e17; color: #4ecdc4; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; z-index: 1; }
+  .fj-card { background: #111620; border: 1px solid #1e2738; border-radius: 10px; padding: 16px 20px; }
+  .fj-card-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .fj-component { font-size: 15px; font-weight: 700; color: #e8ecf1; }
+  .fj-sublabel { font-size: 11px; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; }
+  .fj-desc { font-size: 13px; color: #6b7b8d; line-height: 1.7; margin-bottom: 12px; }
+  .fj-desc strong { color: #c8d6e5; }
+  .fj-desc code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .fj-layers { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 11px; font-weight: 600; }
+  .fj-layer { padding: 6px 10px; border-radius: 6px; border: 1px solid; margin-top: 4px; }
+  .fj-layer-note { font-family: 'Segoe UI',system-ui,sans-serif; font-size: 10px; font-weight: 400; color: #4a5568; margin-left: 8px; }
+  .fj-layer-ethernet { background: #1a1d24; border-color: #3a3f4a; color: #6b7b8d; }
+  .fj-layer-ip { background: #161a2a; border-color: #2a3060; color: #6c8cff; }
+  .fj-layer-udp-srt { background: #0d1f1e; border-color: #1a4040; color: #4ecdc4; }
+  .fj-layer-mpegts { background: #1f1a0d; border-color: #403a1a; color: #f9ca24; }
+  .fj-layer-video { background: #1a0d0d; border-color: #401a1a; color: #ff6b6b; }
+  .fj-layer-stripped { opacity: 0.3; text-decoration: line-through; border-style: dashed; }
+  .fj-action { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; margin-top: 8px; }
+  .fj-action-nat { color: #ff6b6b; background: #2a1215; border: 1px solid #5c2020; }
+  .fj-action-arq { color: #00b894; background: #0a1f1a; border: 1px solid #0a3d2e; }
+  .fj-action-internal { color: #6c8cff; background: #121630; border: 1px solid #1e3a5f; }
+  .desc-body-tall.open { max-height: 8000px; transition: max-height 0.5s ease; }
+
   /* footnote */
   .footnote { font-size: 13px; color: #8899aa; line-height: 1.7; padding: 16px 20px; background: #111620; border-radius: 8px; border: 1px solid #1e2738; margin-bottom: 24px; }
   .footnote strong { color: #c8d6e5; }
@@ -94,6 +122,10 @@
     .path-bar { flex-direction: column; align-items: stretch; }
     .step-arrow { transform: rotate(90deg); text-align: center; padding: 4px 0; }
     .sim-cards { flex-direction: column; }
+    .frame-journey { padding-left: 30px; }
+    .fj-dot { left: -25px; width: 22px; height: 22px; font-size: 10px; }
+    .frame-journey::before { left: 10px; }
+    .fj-card { padding: 12px 14px; }
   }
 </style>
 </head>
@@ -253,6 +285,215 @@
   <span class="white">&#9492;&#9472;</span> <span class="yellow">L4:</span> SRT Datagram <span class="muted">(UDP + SRT header, ~1316 bytes payload = 7 x 188 TS pkts)</span>
       <span class="white">&#9492;&#9472;</span> <span class="blue">L3:</span> IP Packet <span class="muted">(src/dst IP &mdash; NAT rewrites source address here)</span>
           <span class="white">&#9492;&#9472;</span> <span class="muted">L2:</span> Ethernet Frame <span class="muted">(MAC addresses, changes at every router hop)</span></div>
+  </div>
+
+  <!-- Life of a Frame -->
+  <div class="desc-toggle" style="margin-top:16px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Life of a Frame &mdash; From Camera to Transcoder</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body desc-body-tall">
+    <div style="padding:16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <div style="font-size:12px;color:#6b7b8d;margin-bottom:16px;line-height:1.6;">
+        Follow a single encoded video frame as it travels from the camera through NAT, across the public internet, into LRS Cloud Source, and finally to VOS 360 for transcoding. At each stage, watch the encapsulation layers being added or removed.
+      </div>
+
+      <div class="frame-journey">
+
+        <!-- Stage 1: Encoder -->
+        <div class="fj-stage">
+          <div class="fj-dot">1</div>
+          <div class="fj-card">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#4ecdc4;">Encoder (SRT Source)</span>
+              <span class="fj-sublabel">Camera &rarr; Compressed Frame</span>
+            </div>
+            <div class="fj-desc">
+              Camera captures a raw frame. The encoder compresses it into <strong>H.264/H.265 NAL units</strong>, then packetizes those NAL units into <strong>MPEG-TS packets</strong> &mdash; 7 &times; 188 bytes = <strong>1,316 bytes</strong> of payload, ready for transport.
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-mpegts">
+                MPEG-TS &nbsp;(7 &times; 188 B = 1,316 B)
+                <div class="fj-layer fj-layer-video">
+                  H.264/H.265 NAL Units <span class="fj-layer-note">&larr; compressed video frame</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 2: SRT Encapsulation -->
+        <div class="fj-stage">
+          <div class="fj-dot">2</div>
+          <div class="fj-card">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#4ecdc4;">SRT Encapsulation</span>
+              <span class="fj-sublabel">Wrapping for Transport</span>
+            </div>
+            <div class="fj-desc">
+              The MPEG-TS payload is wrapped in an <strong>SRT datagram</strong> (SRT header added over UDP), placed inside an <strong>IP packet</strong> with source/destination addresses, then wrapped in an <strong>Ethernet frame</strong> with MAC addresses for the first hop.
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-ethernet">
+                L2: Ethernet &nbsp; src=<span style="color:#f9ca24;">AA:...:AA</span> &nbsp; dst=<span style="color:#f9ca24;">BB:...:BB</span>
+                <span class="fj-layer-note">&larr; next-hop MAC (gateway)</span>
+                <div class="fj-layer fj-layer-ip">
+                  L3: IP &nbsp; src=<span style="color:#6c8cff;">10.0.1.5</span> &nbsp; dst=<span style="color:#6c8cff;">34.100.2.8</span>
+                  <div class="fj-layer fj-layer-udp-srt">
+                    L4: SRT/UDP &nbsp; src port=<span style="color:#4ecdc4;">5000</span> &nbsp; dst port=<span style="color:#4ecdc4;">9000</span>
+                    <div class="fj-layer fj-layer-mpegts">
+                      MPEG-TS (1,316 B)
+                      <div class="fj-layer fj-layer-video">
+                        H.264/H.265 NAL Units
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 3: Customer NAT -->
+        <div class="fj-stage">
+          <div class="fj-dot">3</div>
+          <div class="fj-card" style="border-left:3px solid #ff6b6b;">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#ff6b6b;">Customer NAT</span>
+              <span class="fj-sublabel">Address Rewrite</span>
+            </div>
+            <div class="fj-desc">
+              NAT gateway rewrites the source IP from <code>10.0.1.5</code> to the public address <code>203.0.113.50</code> and remaps the source port. A <strong>NAT mapping</strong> is created so return traffic can find its way back. The Ethernet frame is rebuilt for the next hop.
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-ethernet">
+                L2: Ethernet &nbsp; src=<span style="color:#f9ca24;">CC:...:CC</span> &nbsp; dst=<span style="color:#f9ca24;">DD:...:DD</span>
+                <span class="fj-layer-note">&larr; NEW MACs for next hop</span>
+                <div class="fj-layer fj-layer-ip">
+                  L3: IP &nbsp; src=<span style="color:#ff6b6b;text-decoration:line-through;">10.0.1.5</span> &rarr; <span style="color:#ff6b6b;font-weight:700;">203.0.113.50</span> &nbsp; dst=<span style="color:#6c8cff;">34.100.2.8</span>
+                  <span class="fj-layer-note">&larr; NAT rewrites source</span>
+                  <div class="fj-layer fj-layer-udp-srt">
+                    L4: SRT/UDP &nbsp; src port=<span style="color:#ff6b6b;text-decoration:line-through;">5000</span> &rarr; <span style="color:#ff6b6b;font-weight:700;">41234</span> &nbsp; dst port=<span style="color:#4ecdc4;">9000</span>
+                    <div class="fj-layer fj-layer-mpegts">
+                      MPEG-TS (1,316 B) <span class="fj-layer-note">&larr; unchanged</span>
+                      <div class="fj-layer fj-layer-video">H.264/H.265 NAL Units</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="fj-action fj-action-nat">NAT Mapping: 10.0.1.5:5000 &harr; 203.0.113.50:41234</div>
+          </div>
+        </div>
+
+        <!-- Stage 4: Public Internet -->
+        <div class="fj-stage">
+          <div class="fj-dot">4</div>
+          <div class="fj-card">
+            <div class="fj-card-header">
+              <span class="fj-component">Public Internet</span>
+              <span class="fj-sublabel">Multiple Router Hops</span>
+            </div>
+            <div class="fj-desc">
+              The packet traverses multiple routers across the internet. At each hop, the <strong>Ethernet frame is stripped and rebuilt</strong> with new MAC addresses. The <strong>IP addresses stay the same</strong> &mdash; they are the end-to-end addressing that routers use for forwarding decisions.
+            </div>
+            <div class="fj-layers">
+              <div style="font-size:11px;color:#4a5568;font-family:'SF Mono','Fira Code','Consolas',monospace;line-height:2;">
+                <div><span style="color:#6b7b8d;">Hop 1:</span> Ethernet <span style="color:#f9ca24;">CC&rarr;DD</span> &nbsp;|&nbsp; IP <span style="color:#6c8cff;">203.0.113.50 &rarr; 34.100.2.8</span></div>
+                <div><span style="color:#6b7b8d;">Hop 2:</span> Ethernet <span style="color:#f9ca24;">EE&rarr;FF</span> &nbsp;|&nbsp; IP <span style="color:#6c8cff;">203.0.113.50 &rarr; 34.100.2.8</span> <span style="color:#00b894;">&larr; same</span></div>
+                <div><span style="color:#6b7b8d;">Hop 3:</span> Ethernet <span style="color:#f9ca24;">GG&rarr;HH</span> &nbsp;|&nbsp; IP <span style="color:#6c8cff;">203.0.113.50 &rarr; 34.100.2.8</span> <span style="color:#00b894;">&larr; same</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 5: LRS Cloud Source -->
+        <div class="fj-stage">
+          <div class="fj-dot">5</div>
+          <div class="fj-card" style="border-left:3px solid #f9ca24;">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#f9ca24;">LRS Cloud Source (Ingress)</span>
+              <span class="fj-sublabel">Receive &amp; Stabilise</span>
+            </div>
+            <div class="fj-desc">
+              Outer layers are peeled off: Ethernet stripped, IP unwrapped, UDP extracted. The <strong>SRT layer</strong> takes over: checks packet sequence numbers, places the datagram into the <strong>TSBPD buffer</strong> at its correct timestamp position, and triggers <strong>ARQ (NAK-based retransmission)</strong> if any packets were lost in transit. The stream is stabilised and ready for internal delivery.
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-ethernet fj-layer-stripped">L2: Ethernet &mdash; stripped</div>
+              <div class="fj-layer fj-layer-ip fj-layer-stripped">L3: IP &mdash; unwrapped</div>
+              <div class="fj-layer fj-layer-udp-srt fj-layer-stripped">L4: UDP &mdash; extracted</div>
+              <div class="fj-layer fj-layer-udp-srt">
+                SRT Layer: seq check, TSBPD buffer, ARQ recovery
+                <div class="fj-layer fj-layer-mpegts">
+                  MPEG-TS (1,316 B) <span class="fj-layer-note">&larr; extracted &amp; buffered</span>
+                  <div class="fj-layer fj-layer-video">H.264/H.265 NAL Units</div>
+                </div>
+              </div>
+            </div>
+            <div class="fj-action fj-action-arq">SRT: TSBPD + ARQ Recovery</div>
+          </div>
+        </div>
+
+        <!-- Stage 6: LRS → VOS 360 -->
+        <div class="fj-stage">
+          <div class="fj-dot">6</div>
+          <div class="fj-card" style="border-left:3px solid #6c8cff;">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#6c8cff;">LRS &rarr; VOS 360 (within VPC)</span>
+              <span class="fj-sublabel">Internal Re-encapsulation</span>
+            </div>
+            <div class="fj-desc">
+              The stream is re-encapsulated for delivery within Harmonic's VPC: new <strong>SRT datagram</strong>, new <strong>UDP/IP headers</strong> (internal VPC addresses), new <strong>Ethernet frame</strong>. No NAT is involved &mdash; both components are on the same VPC or connected via VPC peering.
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-ethernet">
+                L2: Ethernet &nbsp; <span style="color:#6b7b8d;">(VPC internal MACs)</span>
+                <div class="fj-layer fj-layer-ip">
+                  L3: IP &nbsp; src=<span style="color:#6c8cff;">10.128.0.5</span> &nbsp; dst=<span style="color:#6c8cff;">10.128.0.20</span>
+                  <span class="fj-layer-note">&larr; internal VPC addresses</span>
+                  <div class="fj-layer fj-layer-udp-srt">
+                    L4: SRT/UDP &nbsp; <span style="color:#4ecdc4;">new SRT session</span>
+                    <div class="fj-layer fj-layer-mpegts">
+                      MPEG-TS (1,316 B)
+                      <div class="fj-layer fj-layer-video">H.264/H.265 NAL Units</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="fj-action fj-action-internal">No NAT &mdash; VPC Internal</div>
+          </div>
+        </div>
+
+        <!-- Stage 7: VOS 360 Transcoder -->
+        <div class="fj-stage">
+          <div class="fj-dot">7</div>
+          <div class="fj-card" style="border-left:3px solid #00b894;">
+            <div class="fj-card-header">
+              <span class="fj-component" style="color:#00b894;">VOS 360 Transcoder (Ingest)</span>
+              <span class="fj-sublabel">Decapsulate &amp; Decode</span>
+            </div>
+            <div class="fj-desc">
+              All transport layers are stripped off. The <strong>MPEG-TS packets</strong> are extracted and demuxed. The <strong>H.264/H.265 NAL units</strong> are decoded back into a raw video frame and delivered to the transcoder for processing (ABR ladder generation, packaging for HLS/DASH delivery).
+            </div>
+            <div class="fj-layers">
+              <div class="fj-layer fj-layer-ethernet fj-layer-stripped">L2: Ethernet &mdash; stripped</div>
+              <div class="fj-layer fj-layer-ip fj-layer-stripped">L3: IP &mdash; stripped</div>
+              <div class="fj-layer fj-layer-udp-srt fj-layer-stripped">L4: SRT/UDP &mdash; stripped</div>
+              <div class="fj-layer fj-layer-mpegts">
+                MPEG-TS &mdash; demuxed
+                <div class="fj-layer fj-layer-video">
+                  H.264/H.265 NAL Units &rarr; <strong style="color:#00b894;">Decoded Raw Frame</strong>
+                  <span class="fj-layer-note">&larr; delivered to transcoder</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
 
   <!-- Terminology -->
