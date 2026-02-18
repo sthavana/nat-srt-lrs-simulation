@@ -445,12 +445,13 @@ Protocol:    <span class="value">SRT</span> (over UDP)
 
   <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
     <span class="arrow">&#9654;</span>
-    <span class="toggle-title">Can multiple SRT sources share the same PSC connection?</span>
+    <span class="toggle-title">Can multiple SRT sources share the same LRS Cloud Source?</span>
     <span class="toggle-hint">click to expand</span>
   </div>
   <div class="desc-body">
     <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      <strong style="color:#c8d6e5;">Yes.</strong> Multiple SRT sources can connect to the same LRS Cloud Source IP:PORT. Each SRT source establishes its own SRT session (identified by source IP:port). The LRS Cloud Source handles multiple concurrent SRT sessions.
+      <strong style="color:#c8d6e5;">Each SRT stream requires its own LRS Cloud Source (pipe).</strong> An LRS Cloud Source can accept up to <strong style="color:#f9ca24;">2 SRT connections</strong>, but this is strictly for <strong style="color:#f9ca24;">redundancy</strong> (e.g. primary + backup encoder sending the same stream) — not for carrying different content.<br><br>
+      For example, if a customer has 10 SRT services, they need <strong style="color:#c8d6e5;">10 separate LRS Cloud Sources</strong> configured. All of them can share the same PSC connection (Network Attachment + PSC Interface) — no additional PSC setup is needed per stream.
     </div>
   </div>
 
@@ -461,7 +462,7 @@ Protocol:    <span class="value">SRT</span> (over UDP)
   </div>
   <div class="desc-body">
     <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      New SRT sources just need to be configured as <strong style="color:#c8d6e5;">SRT Callers</strong> pointing to the same PSC IP:PORT. No additional Network Attachments or PSC interfaces are needed unless separate LRS Cloud Sources are required for different services. The Network Attachment and PSC interface remain in place.
+      Harmonic provisions a <strong style="color:#c8d6e5;">new LRS Cloud Source (pipe)</strong> for each additional SRT stream. The customer configures each new SRT source as an <strong style="color:#c8d6e5;">SRT Caller</strong> pointing to the new Cloud Source's IP:PORT. The existing PSC infrastructure (Network Attachment + PSC Interface) remains in place — no additional PSC setup is needed.
     </div>
   </div>
 
