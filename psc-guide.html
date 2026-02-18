@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LRS via Private Service Connect &mdash; Setup Guide</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+  .header .back-link { font-size: 13px; color: #4a5568; text-decoration: none; }
+  .header .back-link:hover { color: #4ecdc4; }
+
+  .content { max-width: 900px; margin: 0 auto; padding: 30px; }
+
+  .section-label { font-size: 12px; color: #6b7b8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 32px; }
+
+  /* collapsible */
+  .desc-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 4px; user-select: none; }
+  .desc-toggle:hover { background: #111620; }
+  .desc-toggle .arrow { font-size: 10px; color: #4ecdc4; transition: transform 0.2s; }
+  .desc-toggle.open .arrow { transform: rotate(90deg); }
+  .desc-toggle .toggle-title { font-size: 13px; font-weight: 600; color: #4ecdc4; }
+  .desc-toggle .toggle-hint { font-size: 11px; color: #4a5568; margin-left: auto; }
+  .desc-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .desc-body.open { max-height: 4000px; }
+
+  .intro { font-size: 14px; color: #6b7b8d; line-height: 1.8; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 24px; }
+  .intro strong { color: #c8d6e5; }
+
+  /* step cards */
+  .step-timeline { position: relative; padding: 0 0 0 40px; }
+  .step-timeline::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #4ecdc4, #4ecdc440); }
+  .step { position: relative; margin-bottom: 28px; }
+  .step:last-child { margin-bottom: 0; }
+  .step-dot { position: absolute; left: -33px; top: 12px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #4ecdc4; background: #0a0e17; color: #4ecdc4; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; z-index: 1; }
+  .step-card { background: #111620; border: 1px solid #1e2738; border-radius: 10px; padding: 18px 22px; }
+  .step-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .step-title { font-size: 15px; font-weight: 700; color: #e8ecf1; }
+  .step-owner { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; }
+  .owner-customer { color: #f9ca24; background: #1f1a0a; border: 1px solid #3d2e0a; }
+  .owner-harmonic { color: #6c8cff; background: #121630; border: 1px solid #1e3a5f; }
+  .owner-both { color: #4ecdc4; background: #0d1f1e; border: 1px solid #1a4040; }
+  .step-desc { font-size: 13px; color: #6b7b8d; line-height: 1.7; margin-bottom: 12px; }
+  .step-desc strong { color: #c8d6e5; }
+  .step-desc code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+
+  /* code blocks */
+  .code-block { background: #0d1117; border: 1px solid #1e2738; border-radius: 8px; padding: 14px 16px; margin: 10px 0; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; line-height: 1.7; color: #c8d6e5; overflow-x: auto; white-space: pre; }
+  .code-block .comment { color: #4a5568; }
+  .code-block .flag { color: #6c8cff; }
+  .code-block .value { color: #4ecdc4; }
+  .code-block .placeholder { color: #f9ca24; }
+
+  /* info boxes */
+  .info-box { font-size: 13px; color: #6b7b8d; line-height: 1.6; padding: 12px 16px; border-radius: 8px; margin: 10px 0; border: 1px solid; }
+  .info-note { background: #121630; border-color: #1e3a5f; }
+  .info-note strong { color: #6c8cff; }
+  .info-warn { background: #1f1a0a; border-color: #3d2e0a; }
+  .info-warn strong { color: #f9ca24; }
+  .info-success { background: #0a1f1a; border-color: #0a3d2e; }
+  .info-success strong { color: #00b894; }
+
+  /* diagram */
+  .diagram { background: #0d1117; border-radius: 12px; border: 1px solid #1e2738; padding: 24px; margin: 16px 0; overflow-x: auto; }
+  .diagram-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; }
+  .d-box { border: 1.5px solid; border-radius: 10px; padding: 12px 16px; text-align: center; min-width: 140px; }
+  .d-box .d-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .d-box .d-sub { font-size: 10px; color: #4a5568; }
+  .d-arrow { font-size: 18px; color: #4ecdc4; flex-shrink: 0; }
+  .d-label { font-size: 10px; text-align: center; padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+
+  /* checklist */
+  .checklist { list-style: none; margin: 10px 0; }
+  .checklist li { font-size: 13px; color: #6b7b8d; line-height: 1.7; padding: 4px 0 4px 24px; position: relative; }
+  .checklist li::before { content: '\2610'; position: absolute; left: 0; color: #4ecdc4; font-size: 14px; }
+
+  /* table */
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  .ref-table th { text-align: left; padding: 8px 12px; background: #111620; color: #6b7b8d; font-weight: 700; border-bottom: 1px solid #1e2738; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ref-table td { padding: 8px 12px; border-bottom: 1px solid #1e2738; color: #c8d6e5; }
+  .ref-table tr:last-child td { border-bottom: none; }
+
+  .footer { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 16px 30px; border-top: 1px solid #2a3040; text-align: center; font-size: 12px; color: #4a5568; margin-top: 40px; }
+
+  @media (max-width: 700px) {
+    .step-timeline { padding-left: 30px; }
+    .step-dot { left: -25px; width: 22px; height: 22px; font-size: 10px; }
+    .step-timeline::before { left: 10px; }
+    .diagram-row { flex-direction: column; }
+    .d-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back-link">&larr; Back</a>
+  <h1><span>LRS via Private Service Connect</span> &mdash; Setup Guide</h1>
+</div>
+
+<div class="content">
+
+  <!-- Overview -->
+  <div class="intro">
+    This guide details how to connect <strong>SRT sources</strong> in a customer GCP VPC to <strong>Harmonic LRS Cloud Source</strong> using <strong>Google Private Service Connect (PSC)</strong> instead of VPC peering.
+    <br><br>
+    <strong>Why PSC instead of VPC Peering?</strong> VPC peering bridges two entire networks together, giving broad access between them. PSC provides <strong>controlled, granular connectivity</strong> &mdash; the customer creates a Network Attachment that permits only the Harmonic LRS project to connect, without exposing the rest of their VPC. The customer retains full control over which projects can access their network.
+  </div>
+
+  <!-- Architecture Diagram -->
+  <div class="section-label">Architecture</div>
+  <div class="diagram">
+    <div class="diagram-row">
+      <div class="d-box" style="border-color:#f9ca24;">
+        <div class="d-title" style="color:#f9ca24;">Customer VPC (Globo)</div>
+        <div class="d-sub">SRT Sources (10+ services)</div>
+        <div class="d-sub" style="margin-top:6px;color:#f9ca24;">Network Attachment</div>
+        <div class="d-sub">(subnet in same region as LRS)</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="d-arrow">&#10132;</div>
+        <div class="d-label" style="color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">PSC Interface</div>
+        <div style="font-size:10px;color:#4a5568;">Private IP from<br>customer subnet</div>
+      </div>
+
+      <div class="d-box" style="border-color:#6c8cff;">
+        <div class="d-title" style="color:#6c8cff;">Harmonic LRS VPC</div>
+        <div class="d-sub">LRS Cloud Source VM</div>
+        <div class="d-sub" style="margin-top:6px;color:#6c8cff;">PSC Interface (NIC)</div>
+        <div class="d-sub">attached to customer's<br>Network Attachment</div>
+      </div>
+
+      <div class="d-arrow">&#10132;</div>
+
+      <div class="d-box" style="border-color:#00b894;">
+        <div class="d-title" style="color:#00b894;">VOS 360</div>
+        <div class="d-sub">Transcoder / Ingest</div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:#4a5568;">
+      SRT Sources connect to the PSC interface's private IP &mdash; no public internet, no VPC peering, no NAT.
+    </div>
+  </div>
+
+  <!-- Roles -->
+  <div class="section-label">Roles &amp; Responsibilities</div>
+  <table class="ref-table">
+    <tr><th>Action</th><th>Owner</th></tr>
+    <tr><td>Create Network Attachment in customer VPC</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>Provide LRS GCP project ID</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
+    <tr><td>Add Harmonic project to Network Attachment accepted list</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>Share Network Attachment URL with Harmonic</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>Create LRS Cloud Source with PSC (Network Attachment URL)</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
+    <tr><td>Provide PSC interface IP and SRT port to customer</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
+    <tr><td>Configure SRT sources to connect to PSC IP:PORT</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>Configure firewall rules for SRT traffic</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+  </table>
+
+  <!-- Prerequisites -->
+  <div class="section-label">Prerequisites</div>
+  <div class="step-card" style="margin-bottom:20px;">
+    <ul class="checklist">
+      <li>Customer has a GCP VPC with SRT sources available (e.g. via Google Direct Connect from studio)</li>
+      <li>Harmonic LRS VPC is deployed in the <strong>same GCP region</strong> as the customer VPC</li>
+      <li>Harmonic provides their <strong>LRS GCP project ID</strong> to the customer</li>
+      <li>Customer has <strong>Compute Network Admin</strong> (<code>roles/compute.networkAdmin</code>) IAM role</li>
+      <li>Customer has a <strong>subnet</strong> in their VPC in the same region (for the Network Attachment)</li>
+      <li>Compute Engine API is enabled in the customer's project</li>
+    </ul>
+  </div>
+
+  <!-- Step-by-Step Procedure -->
+  <div class="section-label">Step-by-Step Procedure</div>
+  <div class="step-timeline">
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-dot">1</div>
+      <div class="step-card">
+        <div class="step-header">
+          <span class="step-title">Harmonic Provides LRS Project ID</span>
+          <span class="step-owner owner-harmonic">Harmonic</span>
+        </div>
+        <div class="step-desc">
+          Harmonic provides the <strong>GCP project ID</strong> of the LRS deployment to the customer. This project ID will be added to the Network Attachment's accepted projects list so the LRS VM can create a PSC interface into the customer's VPC.
+        </div>
+        <div class="info-box info-note">
+          <strong>Example project ID:</strong> <code>harmonic-lrs-prod-12345</code><br>
+          The customer will need this in Step 3.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="step-dot">2</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Customer Creates a Network Attachment</span>
+          <span class="step-owner owner-customer">Customer</span>
+        </div>
+        <div class="step-desc">
+          The customer creates a <strong>Network Attachment</strong> in their GCP VPC. This is the resource that allows the Harmonic LRS VM to establish a PSC interface into the customer's network.
+        </div>
+
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Network Attachments</strong><br>
+            2. Click <strong style="color:#c8d6e5;">Create Network Attachment</strong><br>
+            3. Enter a name (e.g. <code>lrs-psc-attachment</code>)<br>
+            4. Select the <strong style="color:#c8d6e5;">VPC network</strong> and <strong style="color:#c8d6e5;">region</strong> (must match LRS region)<br>
+            5. Select a <strong style="color:#c8d6e5;">subnet</strong> in that region<br>
+            6. Connection preference: <strong style="color:#f9ca24;">Accept connections for selected projects</strong><br>
+            7. Under Accepted projects, add the Harmonic LRS project ID from Step 1<br>
+            8. Click <strong style="color:#c8d6e5;">Create</strong>
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div class="code-block"><span class="comment"># Create Network Attachment with manual acceptance</span>
+gcloud compute network-attachments create <span class="placeholder">lrs-psc-attachment</span> \
+    <span class="flag">--region=</span><span class="placeholder">REGION</span> \
+    <span class="flag">--connection-preference=</span><span class="value">ACCEPT_MANUAL</span> \
+    <span class="flag">--producer-accept-list=</span><span class="placeholder">HARMONIC_LRS_PROJECT_ID</span> \
+    <span class="flag">--subnets=</span><span class="placeholder">SUBNET_NAME</span></div>
+        </div>
+
+        <div class="info-box info-warn" style="margin-top:12px;">
+          <strong>Important:</strong> Use <code>ACCEPT_MANUAL</code> (not <code>ACCEPT_AUTOMATIC</code>) so only the Harmonic LRS project can connect. This is the security control that replaces VPC peering's broad access.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-dot">3</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Customer Shares Network Attachment URL</span>
+          <span class="step-owner owner-customer">Customer</span>
+        </div>
+        <div class="step-desc">
+          After creating the Network Attachment, the customer provides the <strong>Network Attachment URL</strong> to Harmonic. This URL uniquely identifies the attachment and is needed when creating the LRS Cloud Source.
+        </div>
+        <div class="code-block"><span class="comment"># Network Attachment URL format:</span>
+projects/<span class="placeholder">CUSTOMER_PROJECT_ID</span>/regions/<span class="placeholder">REGION</span>/networkAttachments/<span class="placeholder">lrs-psc-attachment</span>
+
+<span class="comment"># To retrieve the URL:</span>
+gcloud compute network-attachments describe <span class="placeholder">lrs-psc-attachment</span> \
+    <span class="flag">--region=</span><span class="placeholder">REGION</span> \
+    <span class="flag">--format=</span><span class="value">"value(selfLink)"</span></div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+      <div class="step-dot">4</div>
+      <div class="step-card" style="border-left:3px solid #6c8cff;">
+        <div class="step-header">
+          <span class="step-title">Harmonic Creates LRS Cloud Source with PSC</span>
+          <span class="step-owner owner-harmonic">Harmonic</span>
+        </div>
+        <div class="step-desc">
+          Harmonic creates the <strong>LRS Cloud Source (Pipe)</strong> using the LRS UI or API. During creation, the <strong>Network Attachment URL</strong> from Step 3 is entered. This tells LRS to create a <strong>PSC interface</strong> on the LRS VM that connects to the customer's Network Attachment.
+        </div>
+        <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;margin:10px 0;">
+          1. Open the LRS Cloud Source creation UI (or use the LRS API)<br>
+          2. Enter the <strong style="color:#c8d6e5;">Network Attachment URL</strong> from the customer<br>
+          3. LRS provisions the Cloud Source VM with a <strong style="color:#c8d6e5;">PSC interface</strong><br>
+          4. Google Cloud assigns a <strong style="color:#4ecdc4;">private IP address</strong> from the customer's subnet to the PSC interface<br>
+          5. The LRS Cloud Source is now reachable from within the customer's VPC
+        </div>
+        <div class="info-box info-note">
+          <strong>What happens under the hood:</strong> The LRS VM gets a second network interface (PSC interface) that is attached to the customer's VPC via the Network Attachment. The primary NIC remains on Harmonic's LRS VPC. Traffic from the customer's SRT sources arrives on the PSC interface; LRS processes it and routes downstream via its primary NIC.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="step">
+      <div class="step-dot">5</div>
+      <div class="step-card" style="border-left:3px solid #6c8cff;">
+        <div class="step-header">
+          <span class="step-title">Harmonic Provides PSC IP and SRT Port</span>
+          <span class="step-owner owner-harmonic">Harmonic</span>
+        </div>
+        <div class="step-desc">
+          Once the LRS Cloud Source is created, Harmonic provides the customer with:<br>
+          &bull; The <strong>private IP address</strong> assigned to the PSC interface (from the customer's subnet)<br>
+          &bull; The <strong>SRT port</strong> on which the LRS Cloud Source is listening
+        </div>
+        <div class="code-block"><span class="comment"># Example output from Harmonic:</span>
+PSC Interface IP: <span class="value">10.0.5.12</span>    <span class="comment"># from customer's subnet</span>
+SRT Port:         <span class="value">9000</span>
+
+<span class="comment"># The customer's SRT sources will connect to:</span>
+srt://<span class="value">10.0.5.12</span>:<span class="value">9000</span></div>
+        <div class="info-box info-note">
+          <strong>Note:</strong> The IP address comes from the customer's own subnet (the one specified in the Network Attachment). This is a <strong>private IP</strong> &mdash; no public internet, no NAT traversal required.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 6 -->
+    <div class="step">
+      <div class="step-dot">6</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Customer Configures Firewall Rules</span>
+          <span class="step-owner owner-customer">Customer</span>
+        </div>
+        <div class="step-desc">
+          The customer must ensure <strong>firewall rules</strong> allow UDP traffic from the SRT source subnet(s) to the PSC interface IP on the SRT port.
+        </div>
+        <div class="code-block"><span class="comment"># Allow SRT (UDP) traffic to the PSC interface</span>
+gcloud compute firewall-rules create <span class="placeholder">allow-srt-to-lrs</span> \
+    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
+    <span class="flag">--direction=</span><span class="value">EGRESS</span> \
+    <span class="flag">--action=</span><span class="value">ALLOW</span> \
+    <span class="flag">--rules=</span><span class="value">udp:9000</span> \
+    <span class="flag">--destination-ranges=</span><span class="placeholder">10.0.5.12/32</span>
+
+<span class="comment"># Also ensure ingress is allowed for return traffic (SRT is bidirectional)</span>
+gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lrs</span> \
+    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
+    <span class="flag">--direction=</span><span class="value">INGRESS</span> \
+    <span class="flag">--action=</span><span class="value">ALLOW</span> \
+    <span class="flag">--rules=</span><span class="value">udp:9000</span> \
+    <span class="flag">--source-ranges=</span><span class="placeholder">10.0.5.12/32</span></div>
+        <div class="info-box info-warn">
+          <strong>SRT is bidirectional UDP:</strong> Even though SRT sources are Callers (initiating the connection), SRT uses UDP which requires both directions to be open. The LRS Listener sends NAKs, ACKs, and retransmitted packets back to the Caller. Ensure both egress and ingress rules are in place.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 7 -->
+    <div class="step">
+      <div class="step-dot">7</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Customer Configures SRT Sources</span>
+          <span class="step-owner owner-customer">Customer</span>
+        </div>
+        <div class="step-desc">
+          Configure each SRT source (encoder) to connect to the LRS Cloud Source using the <strong>PSC interface IP</strong> and <strong>SRT port</strong> from Step 5.
+        </div>
+        <div class="code-block"><span class="comment"># SRT Source Configuration</span>
+Mode:        <span class="value">Caller</span>
+Destination: <span class="value">10.0.5.12</span>:<span class="value">9000</span>
+Protocol:    <span class="value">SRT</span> (over UDP)
+
+<span class="comment"># The LRS Cloud Source is the Listener</span>
+<span class="comment"># The SRT source (encoder) is the Caller</span>
+<span class="comment"># No NAT traversal needed — both on private network</span></div>
+        <table class="ref-table" style="margin-top:12px;">
+          <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
+          <tr><td>SRT Mode</td><td><strong style="color:#4ecdc4;">Caller</strong></td><td>Source initiates connection to LRS</td></tr>
+          <tr><td>Destination IP</td><td><code>10.0.5.12</code></td><td>PSC interface IP (from customer's subnet)</td></tr>
+          <tr><td>Destination Port</td><td><code>9000</code></td><td>SRT port provided by Harmonic</td></tr>
+          <tr><td>Protocol</td><td>SRT over UDP</td><td>Encrypted, reliable transport</td></tr>
+          <tr><td>Latency</td><td><code>120</code>&ndash;<code>200</code> ms</td><td>Recommended; low latency possible since no public internet</td></tr>
+        </table>
+        <div class="info-box info-success" style="margin-top:12px;">
+          <strong>Advantage over corporate firewall:</strong> Since SRT traffic now flows over Google's private backbone (Direct Connect &rarr; customer VPC &rarr; PSC &rarr; LRS VPC), there is no NAT traversal, no public internet exposure, and significantly lower latency. SRT latency settings can be reduced compared to public internet paths.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 8 -->
+    <div class="step">
+      <div class="step-dot">8</div>
+      <div class="step-card" style="border-left:3px solid #00b894;">
+        <div class="step-header">
+          <span class="step-title">Verify Connectivity</span>
+          <span class="step-owner owner-both">Both</span>
+        </div>
+        <div class="step-desc">
+          Both parties verify the SRT connection is established and streams are flowing.
+        </div>
+        <ul class="checklist">
+          <li>SRT source shows <strong>Connected</strong> status</li>
+          <li>LRS Cloud Source shows stream as <strong>Active</strong></li>
+          <li>SRT statistics show 0% packet loss (no public internet = no loss)</li>
+          <li>Latency is consistent and low (typically &lt; 10ms within same region)</li>
+          <li>Repeat for all 10+ SRT services</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PSC vs VPC Peering comparison -->
+  <div class="section-label">PSC vs VPC Peering &mdash; Why PSC?</div>
+  <table class="ref-table">
+    <tr><th></th><th>VPC Peering</th><th>Private Service Connect</th></tr>
+    <tr><td><strong style="color:#c8d6e5;">Network Access</strong></td><td>Full bidirectional access between VPCs</td><td>Controlled &mdash; only via Network Attachment</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Customer Control</strong></td><td>Limited &mdash; peer sees entire VPC</td><td>Customer controls which projects can connect</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">IP Overlap</strong></td><td>CIDR ranges must not overlap</td><td>No overlap restrictions</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Egress Cost (same region)</strong></td><td>No charge</td><td>No charge</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Security</strong></td><td>Firewall rules needed both sides</td><td>Network Attachment acceptance + firewall rules</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Scalability</strong></td><td>1 peering per VPC pair</td><td>Multiple Network Attachments per VPC</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Setup Complexity</strong></td><td>Simple</td><td>Moderate (Network Attachment + PSC interface)</td></tr>
+  </table>
+
+  <!-- FAQ -->
+  <div class="section-label">Frequently Asked Questions</div>
+
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Does the customer VPC and LRS VPC need to be in the same region?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <strong style="color:#c8d6e5;">Yes.</strong> The Network Attachment and the PSC interface must be in the same GCP region. Harmonic deploys the LRS Cloud Source in the same region as the customer's VPC to ensure this requirement is met and to minimise latency.
+    </div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Is there NAT involved with PSC?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <strong style="color:#c8d6e5;">No.</strong> The PSC interface receives a private IP from the customer's own subnet. SRT sources connect directly to this private IP &mdash; no NAT, no public IP, no address translation. This is a key advantage over the previous corporate firewall approach.
+    </div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Can multiple SRT sources share the same PSC connection?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <strong style="color:#c8d6e5;">Yes.</strong> Multiple SRT sources can connect to the same LRS Cloud Source IP:PORT. Each SRT source establishes its own SRT session (identified by source IP:port). The LRS Cloud Source handles multiple concurrent SRT sessions.
+    </div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">What happens if the customer adds more SRT services later?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      New SRT sources just need to be configured as <strong style="color:#c8d6e5;">SRT Callers</strong> pointing to the same PSC IP:PORT. No additional Network Attachments or PSC interfaces are needed unless separate LRS Cloud Sources are required for different services. The Network Attachment and PSC interface remain in place.
+    </div>
+  </div>
+
+  <!-- Quick Reference -->
+  <div class="section-label">Quick Reference &mdash; URLs &amp; Commands</div>
+  <table class="ref-table">
+    <tr><th>Resource</th><th>Format / Command</th></tr>
+    <tr>
+      <td>Network Attachment URL</td>
+      <td><code>projects/{PROJECT}/regions/{REGION}/networkAttachments/{NAME}</code></td>
+    </tr>
+    <tr>
+      <td>Create Network Attachment</td>
+      <td><code>gcloud compute network-attachments create ...</code></td>
+    </tr>
+    <tr>
+      <td>Describe Network Attachment</td>
+      <td><code>gcloud compute network-attachments describe {NAME} --region={REGION}</code></td>
+    </tr>
+    <tr>
+      <td>SRT Connection String</td>
+      <td><code>srt://{PSC_IP}:{SRT_PORT}</code></td>
+    </tr>
+    <tr>
+      <td>Google Docs: Network Attachments</td>
+      <td><a href="https://cloud.google.com/vpc/docs/create-manage-network-attachments" target="_blank" style="color:#4ecdc4;">cloud.google.com/vpc/docs/create-manage-network-attachments</a></td>
+    </tr>
+    <tr>
+      <td>Google Docs: PSC Interfaces</td>
+      <td><a href="https://cloud.google.com/vpc/docs/create-manage-private-service-connect-interfaces" target="_blank" style="color:#4ecdc4;">cloud.google.com/vpc/docs/create-manage-private-service-connect-interfaces</a></td>
+    </tr>
+  </table>
+
+</div>
+
+<div class="footer">
+  LRS via Private Service Connect &mdash; Customer Setup Guide
+</div>
+
+</body>
+</html>
