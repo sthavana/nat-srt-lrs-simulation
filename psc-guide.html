@@ -117,26 +117,36 @@
   <div class="section-label">Architecture</div>
   <div class="diagram">
     <div class="diagram-row">
-      <div class="d-box" style="border-color:#f9ca24;">
+      <div class="d-box" style="border-color:#f9ca24;min-width:180px;">
         <div class="d-title" style="color:#f9ca24;">Customer VPC</div>
         <div class="d-sub">(Globo)</div>
-        <div class="d-sub" style="margin-top:4px;">SRT Sources (10+ services)</div>
+        <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
+          <span style="color:#6b7b8d;">Subnet:</span> <code style="color:#f9ca24;font-size:10px;">globo-srt-subnet</code><br>
+          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">us-central1</code><br>
+          <span style="color:#6b7b8d;">CIDR:</span> <code style="color:#c8d6e5;font-size:10px;">10.0.1.0/24</code>
+        </div>
+        <div class="d-sub" style="margin-top:8px;">SRT Sources (10+ services)</div>
         <div class="d-sub" style="margin-top:6px;color:#f9ca24;">Network Attachment</div>
-        <div class="d-sub">(subnet in same region)</div>
+        <div class="d-sub" style="font-size:10px;">created in <code style="color:#f9ca24;font-size:10px;">globo-srt-subnet</code></div>
       </div>
 
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
         <div class="d-arrow">&#10132;</div>
         <div class="d-label" style="color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">PSC</div>
-        <div style="font-size:10px;color:#4a5568;">Private IP from<br>customer subnet</div>
+        <div style="font-size:10px;color:#4a5568;text-align:center;">PSC Interface gets IP<br>from customer subnet<br><code style="color:#4ecdc4;font-size:10px;">10.0.1.5</code></div>
       </div>
 
-      <div class="d-box" style="border-color:#6c8cff;">
+      <div class="d-box" style="border-color:#6c8cff;min-width:180px;">
         <div class="d-title" style="color:#6c8cff;">LRS VPC</div>
         <div class="d-sub">(Harmonic &mdash; dedicated)</div>
-        <div class="d-sub" style="margin-top:4px;">LRS Cloud Source VM</div>
-        <div class="d-sub" style="margin-top:6px;color:#6c8cff;">PSC Interface (NIC)</div>
-        <div class="d-sub">attached to customer's<br>Network Attachment</div>
+        <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
+          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">us-central1</code> <span style="color:#00b894;">&#10003; same</span>
+        </div>
+        <div class="d-sub" style="margin-top:6px;">LRS Cloud Source VM</div>
+        <div class="d-sub" style="margin-top:4px;font-size:10px;text-align:left;line-height:1.6;">
+          <span style="color:#6b7b8d;">NIC 1 (primary):</span> <code style="color:#6c8cff;font-size:10px;">LRS VPC</code><br>
+          <span style="color:#6b7b8d;">NIC 2 (PSC):</span> <code style="color:#4ecdc4;font-size:10px;">10.0.1.5</code> <span style="color:#4a5568;">&#8592; from customer subnet</span>
+        </div>
       </div>
 
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
@@ -153,7 +163,10 @@
     </div>
 
     <div style="text-align:center;margin-top:16px;font-size:11px;color:#4a5568;">
-      Customer VPC &#8594; PSC &#8594; LRS VPC &#8594; VPC Peering &#8594; VOS 360 VPC &nbsp;|&nbsp; SRT sources connect to PSC interface's private IP &mdash; no public internet, no NAT.
+      SRT sources connect to <code style="color:#4ecdc4;font-size:11px;">srt://10.0.1.5:7086</code> &mdash; a private IP from the customer's own subnet. No public internet, no NAT.
+    </div>
+    <div style="text-align:center;margin-top:8px;font-size:11px;color:#4a5568;">
+      <strong style="color:#f9ca24;">Key requirement:</strong> The customer subnet and LRS must be in the <strong style="color:#c8d6e5;">same GCP region</strong> (both <code style="font-size:10px;color:#c8d6e5;">us-central1</code> in this example).
     </div>
   </div>
 
