@@ -108,6 +108,8 @@
   <div class="intro">
     This guide details how to connect <strong>SRT sources</strong> in a customer GCP VPC to <strong>Harmonic LRS Cloud Source</strong> using <strong>Google Private Service Connect (PSC)</strong> instead of VPC peering.
     <br><br>
+    <strong>Architecture context:</strong> LRS runs in its own <strong>dedicated Harmonic VPC</strong> (separate from the VOS360 cluster VPC). LRS connects to VOS360 internally via <strong>VPC Peering</strong>. The customer's SRT sources connect to the LRS VPC via <strong>PSC</strong> &mdash; a controlled, granular link that doesn't expose the customer's entire network.
+    <br><br>
     <strong>Why PSC instead of VPC Peering?</strong> VPC peering bridges two entire networks together, giving broad access between them. PSC provides <strong>controlled, granular connectivity</strong> &mdash; the customer creates a Network Attachment that permits only the Harmonic LRS project to connect, without exposing the rest of their VPC. The customer retains full control over which projects can access their network.
   </div>
 
@@ -116,35 +118,42 @@
   <div class="diagram">
     <div class="diagram-row">
       <div class="d-box" style="border-color:#f9ca24;">
-        <div class="d-title" style="color:#f9ca24;">Customer VPC (Globo)</div>
-        <div class="d-sub">SRT Sources (10+ services)</div>
+        <div class="d-title" style="color:#f9ca24;">Customer VPC</div>
+        <div class="d-sub">(Globo)</div>
+        <div class="d-sub" style="margin-top:4px;">SRT Sources (10+ services)</div>
         <div class="d-sub" style="margin-top:6px;color:#f9ca24;">Network Attachment</div>
-        <div class="d-sub">(subnet in same region as LRS)</div>
+        <div class="d-sub">(subnet in same region)</div>
       </div>
 
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
         <div class="d-arrow">&#10132;</div>
-        <div class="d-label" style="color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">PSC Interface</div>
+        <div class="d-label" style="color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">PSC</div>
         <div style="font-size:10px;color:#4a5568;">Private IP from<br>customer subnet</div>
       </div>
 
       <div class="d-box" style="border-color:#6c8cff;">
-        <div class="d-title" style="color:#6c8cff;">Harmonic LRS VPC</div>
-        <div class="d-sub">LRS Cloud Source VM</div>
+        <div class="d-title" style="color:#6c8cff;">LRS VPC</div>
+        <div class="d-sub">(Harmonic &mdash; dedicated)</div>
+        <div class="d-sub" style="margin-top:4px;">LRS Cloud Source VM</div>
         <div class="d-sub" style="margin-top:6px;color:#6c8cff;">PSC Interface (NIC)</div>
         <div class="d-sub">attached to customer's<br>Network Attachment</div>
       </div>
 
-      <div class="d-arrow">&#10132;</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="d-arrow">&#10132;</div>
+        <div class="d-label" style="color:#6c8cff;background:#121630;border:1px solid #1e3a5f;">VPC Peering</div>
+        <div style="font-size:10px;color:#4a5568;">Harmonic internal</div>
+      </div>
 
       <div class="d-box" style="border-color:#00b894;">
-        <div class="d-title" style="color:#00b894;">VOS 360</div>
-        <div class="d-sub">Transcoder / Ingest</div>
+        <div class="d-title" style="color:#00b894;">VOS 360 VPC</div>
+        <div class="d-sub">(Harmonic)</div>
+        <div class="d-sub" style="margin-top:4px;">Transcoder / Ingest</div>
       </div>
     </div>
 
     <div style="text-align:center;margin-top:16px;font-size:11px;color:#4a5568;">
-      SRT Sources connect to the PSC interface's private IP &mdash; no public internet, no VPC peering, no NAT.
+      Customer VPC &#8594; PSC &#8594; LRS VPC &#8594; VPC Peering &#8594; VOS 360 VPC &nbsp;|&nbsp; SRT sources connect to PSC interface's private IP &mdash; no public internet, no NAT.
     </div>
   </div>
 
@@ -287,7 +296,7 @@ gcloud compute network-attachments describe <span class="placeholder">lrs-psc-at
           5. The LRS Cloud Source is now reachable from within the customer's VPC
         </div>
         <div class="info-box info-note">
-          <strong>What happens under the hood:</strong> The LRS VM gets a second network interface (PSC interface) that is attached to the customer's VPC via the Network Attachment. The primary NIC remains on Harmonic's LRS VPC. Traffic from the customer's SRT sources arrives on the PSC interface; LRS processes it and routes downstream via its primary NIC.
+          <strong>What happens under the hood:</strong> The LRS VM gets a second network interface (PSC interface) that is attached to the customer's VPC via the Network Attachment. The primary NIC remains on the <strong>LRS VPC</strong>. Traffic from the customer's SRT sources arrives on the PSC interface; LRS processes it and routes downstream to VOS 360 via its primary NIC over <strong>VPC Peering</strong> between the LRS VPC and VOS 360 VPC.
         </div>
       </div>
     </div>
@@ -307,10 +316,10 @@ gcloud compute network-attachments describe <span class="placeholder">lrs-psc-at
         </div>
         <div class="code-block"><span class="comment"># Example output from Harmonic:</span>
 PSC Interface IP: <span class="value">10.0.5.12</span>    <span class="comment"># from customer's subnet</span>
-SRT Port:         <span class="value">9000</span>
+SRT Port:         <span class="value">7086</span>
 
 <span class="comment"># The customer's SRT sources will connect to:</span>
-srt://<span class="value">10.0.5.12</span>:<span class="value">9000</span></div>
+srt://<span class="value">10.0.5.12</span>:<span class="value">7086</span></div>
         <div class="info-box info-note">
           <strong>Note:</strong> The IP address comes from the customer's own subnet (the one specified in the Network Attachment). This is a <strong>private IP</strong> &mdash; no public internet, no NAT traversal required.
         </div>
@@ -333,7 +342,7 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-to-lrs<
     <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
     <span class="flag">--direction=</span><span class="value">EGRESS</span> \
     <span class="flag">--action=</span><span class="value">ALLOW</span> \
-    <span class="flag">--rules=</span><span class="value">udp:9000</span> \
+    <span class="flag">--rules=</span><span class="value">udp:7086</span> \
     <span class="flag">--destination-ranges=</span><span class="placeholder">10.0.5.12/32</span>
 
 <span class="comment"># Also ensure ingress is allowed for return traffic (SRT is bidirectional)</span>
@@ -341,7 +350,7 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
     <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
     <span class="flag">--direction=</span><span class="value">INGRESS</span> \
     <span class="flag">--action=</span><span class="value">ALLOW</span> \
-    <span class="flag">--rules=</span><span class="value">udp:9000</span> \
+    <span class="flag">--rules=</span><span class="value">udp:7086</span> \
     <span class="flag">--source-ranges=</span><span class="placeholder">10.0.5.12/32</span></div>
         <div class="info-box info-warn">
           <strong>SRT is bidirectional UDP:</strong> Even though SRT sources are Callers (initiating the connection), SRT uses UDP which requires both directions to be open. The LRS Listener sends NAKs, ACKs, and retransmitted packets back to the Caller. Ensure both egress and ingress rules are in place.
@@ -362,7 +371,7 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
         </div>
         <div class="code-block"><span class="comment"># SRT Source Configuration</span>
 Mode:        <span class="value">Caller</span>
-Destination: <span class="value">10.0.5.12</span>:<span class="value">9000</span>
+Destination: <span class="value">10.0.5.12</span>:<span class="value">7086</span>
 Protocol:    <span class="value">SRT</span> (over UDP)
 
 <span class="comment"># The LRS Cloud Source is the Listener</span>
@@ -372,7 +381,7 @@ Protocol:    <span class="value">SRT</span> (over UDP)
           <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
           <tr><td>SRT Mode</td><td><strong style="color:#4ecdc4;">Caller</strong></td><td>Source initiates connection to LRS</td></tr>
           <tr><td>Destination IP</td><td><code>10.0.5.12</code></td><td>PSC interface IP (from customer's subnet)</td></tr>
-          <tr><td>Destination Port</td><td><code>9000</code></td><td>SRT port provided by Harmonic</td></tr>
+          <tr><td>Destination Port</td><td><code>7086</code></td><td>SRT port provided by Harmonic</td></tr>
           <tr><td>Protocol</td><td>SRT over UDP</td><td>Encrypted, reliable transport</td></tr>
           <tr><td>Latency</td><td><code>120</code>&ndash;<code>200</code> ms</td><td>Recommended; low latency possible since no public internet</td></tr>
         </table>
@@ -450,8 +459,8 @@ Protocol:    <span class="value">SRT</span> (over UDP)
   </div>
   <div class="desc-body">
     <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      <strong style="color:#c8d6e5;">Each SRT stream requires its own LRS Cloud Source (pipe).</strong> An LRS Cloud Source can accept up to <strong style="color:#f9ca24;">2 SRT connections</strong>, but this is strictly for <strong style="color:#f9ca24;">redundancy</strong> (e.g. primary + backup encoder sending the same stream) — not for carrying different content.<br><br>
-      For example, if a customer has 10 SRT services, they need <strong style="color:#c8d6e5;">10 separate LRS Cloud Sources</strong> configured. All of them can share the same PSC connection (Network Attachment + PSC Interface) — no additional PSC setup is needed per stream.
+      <strong style="color:#c8d6e5;">Each SRT stream requires its own LRS Cloud Source (pipe).</strong> Since all Cloud Sources listen on the <strong style="color:#f9ca24;">same port (7086)</strong>, each Cloud Source needs its own IP &mdash; which means its own <strong style="color:#f9ca24;">PSC Interface</strong>.<br><br>
+      For example, if a customer has 10 SRT services, they need <strong style="color:#c8d6e5;">10 LRS Cloud Sources</strong>, each with its own PSC Interface IP. All PSC Interfaces share the <strong style="color:#c8d6e5;">same Network Attachment</strong> (customer creates it once). An LRS Cloud Source can accept up to <strong style="color:#f9ca24;">2 SRT connections</strong> on the same IP:port, but strictly for <strong style="color:#f9ca24;">redundancy</strong> (primary + backup encoder for the same stream).
     </div>
   </div>
 
@@ -462,7 +471,7 @@ Protocol:    <span class="value">SRT</span> (over UDP)
   </div>
   <div class="desc-body">
     <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      Harmonic provisions a <strong style="color:#c8d6e5;">new LRS Cloud Source (pipe)</strong> for each additional SRT stream. The customer configures each new SRT source as an <strong style="color:#c8d6e5;">SRT Caller</strong> pointing to the new Cloud Source's IP:PORT. The existing PSC infrastructure (Network Attachment + PSC Interface) remains in place — no additional PSC setup is needed.
+      Harmonic provisions a <strong style="color:#c8d6e5;">new LRS Cloud Source (pipe)</strong> for each additional SRT stream, which creates a <strong style="color:#c8d6e5;">new PSC Interface</strong> with a new IP from the customer's subnet. The customer configures the new SRT source as an <strong style="color:#c8d6e5;">SRT Caller</strong> pointing to the new IP on port <strong style="color:#4ecdc4;">7086</strong>. The <strong style="color:#c8d6e5;">Network Attachment</strong> (customer side) stays the same &mdash; it's created once and shared by all PSC Interfaces.
     </div>
   </div>
 
