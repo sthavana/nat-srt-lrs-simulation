@@ -110,6 +110,8 @@
     <br><br>
     <strong>Architecture context:</strong> LRS runs in its own <strong>dedicated Harmonic VPC</strong> (separate from the VOS360 cluster VPC). LRS connects to VOS360 internally via <strong>VPC Peering</strong>. The customer's SRT sources connect to the LRS VPC via <strong>PSC</strong> &mdash; a controlled, granular link that doesn't expose the customer's entire network.
     <br><br>
+    <strong>Prerequisite:</strong> SRT streams from the customer headend must already be available in the customer's GCP VPC (e.g. via <strong>Google Cloud Interconnect / Direct Connect</strong>). This connectivity is the customer's responsibility. Harmonic's solution begins at the PSC boundary.
+    <br><br>
     <strong>Why PSC instead of VPC Peering?</strong> VPC peering bridges two entire networks together, giving broad access between them. PSC provides <strong>controlled, granular connectivity</strong> &mdash; the customer creates a Network Attachment that permits only the Harmonic LRS project to connect, without exposing the rest of their VPC. The customer retains full control over which projects can access their network.
   </div>
 
@@ -182,16 +184,30 @@
       <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; Target</span>
       <span style="font-size:12px;color:#6b7b8d;">SRT over Google private backbone via PSC</span>
     </div>
+    <!-- Full flow: Headend → Direct Connect → GCP VPC → PSC → LRS → VOS360 -->
     <div class="diagram-row">
-      <div class="d-box" style="border-color:#f9ca24;min-width:180px;">
+      <div class="d-box" style="border-color:#f9ca24;min-width:140px;">
+        <div class="d-title" style="color:#f9ca24;">Globo Headend</div>
+        <div class="d-sub" style="margin-top:4px;">On-Premise</div>
+        <div class="d-sub" style="margin-top:4px;">SRT Encoders</div>
+        <div class="d-sub">(10+ services)</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="d-arrow" style="color:#f9ca24;">&#10132;</div>
+        <div class="d-label" style="color:#f9ca24;background:#1f1a0a;border:1px solid #3d2e0a;">Direct Connect</div>
+        <div style="font-size:10px;color:#4a5568;text-align:center;">Google Cloud<br>Interconnect</div>
+      </div>
+
+      <div class="d-box" style="border-color:#f9ca24;min-width:170px;">
         <div class="d-title" style="color:#f9ca24;">Customer VPC</div>
-        <div class="d-sub">(Globo)</div>
+        <div class="d-sub">(Globo &mdash; GCP)</div>
         <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
           <span style="color:#6b7b8d;">Subnet:</span> <code style="color:#f9ca24;font-size:10px;">globo-srt-subnet</code><br>
           <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">us-central1</code><br>
           <span style="color:#6b7b8d;">CIDR:</span> <code style="color:#c8d6e5;font-size:10px;">10.0.1.0/24</code>
         </div>
-        <div class="d-sub" style="margin-top:8px;">SRT Sources (10+ services)</div>
+        <div class="d-sub" style="margin-top:6px;">SRT Sources available here</div>
         <div class="d-sub" style="margin-top:6px;color:#f9ca24;">Network Attachment</div>
         <div class="d-sub" style="font-size:10px;">created in <code style="color:#f9ca24;font-size:10px;">globo-srt-subnet</code></div>
       </div>
@@ -202,7 +218,7 @@
         <div style="font-size:10px;color:#4a5568;text-align:center;">PSC Interface gets IP<br>from customer subnet<br><code style="color:#4ecdc4;font-size:10px;">10.0.1.5</code></div>
       </div>
 
-      <div class="d-box" style="border-color:#6c8cff;min-width:180px;">
+      <div class="d-box" style="border-color:#6c8cff;min-width:170px;">
         <div class="d-title" style="color:#6c8cff;">LRS VPC</div>
         <div class="d-sub">(Harmonic &mdash; dedicated)</div>
         <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
@@ -226,6 +242,33 @@
         <div class="d-sub">(Harmonic)</div>
         <div class="d-sub" style="margin-top:4px;">Transcoder / Ingest</div>
       </div>
+    </div>
+
+    <!-- Demarcation line -->
+    <div style="display:flex;align-items:center;gap:12px;margin-top:20px;">
+      <div style="flex:1;height:1px;border-top:1px dashed #3d2e0a;"></div>
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#f9ca24;white-space:nowrap;">Customer Responsibility</span>
+      <div style="flex:0 0 1px;height:16px;border-left:2px solid #4a5568;"></div>
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#6c8cff;white-space:nowrap;">Harmonic Responsibility</span>
+      <div style="flex:1;height:1px;border-top:1px dashed #1e3a5f;"></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:6px;">
+      <div style="flex:1;font-size:10px;color:#6b7b8d;line-height:1.5;">
+        <span style="color:#f9ca24;">&#9679;</span> Google Direct Connect / Cloud Interconnect<br>
+        <span style="color:#f9ca24;">&#9679;</span> Customer VPC, subnets, firewall rules<br>
+        <span style="color:#f9ca24;">&#9679;</span> Network Attachment creation<br>
+        <span style="color:#f9ca24;">&#9679;</span> SRT source configuration
+      </div>
+      <div style="flex:1;font-size:10px;color:#6b7b8d;line-height:1.5;">
+        <span style="color:#6c8cff;">&#9679;</span> LRS VPC &amp; Cloud Source provisioning<br>
+        <span style="color:#6c8cff;">&#9679;</span> PSC Interface creation (using Network Attachment)<br>
+        <span style="color:#6c8cff;">&#9679;</span> VPC Peering to VOS 360<br>
+        <span style="color:#6c8cff;">&#9679;</span> Provide PSC IP + SRT port to customer
+      </div>
+    </div>
+
+    <div style="margin-top:18px;padding:10px 14px;background:#1f1a0a;border:1px solid #3d2e0a;border-radius:8px;font-size:11px;color:#6b7b8d;line-height:1.6;">
+      <strong style="color:#f9ca24;">Prerequisite &amp; demarcation:</strong> Harmonic assumes SRT sources are <strong style="color:#c8d6e5;">already available in the customer's GCP VPC</strong> as the starting point. How the customer gets SRT streams from the headend into GCP (e.g. via <strong style="color:#c8d6e5;">Google Cloud Interconnect / Direct Connect</strong>) is <strong style="color:#f9ca24;">purely the customer's responsibility</strong>. The Harmonic solution begins at the <strong style="color:#c8d6e5;">Network Attachment / PSC boundary</strong>.
     </div>
 
     <div style="text-align:center;margin-top:16px;font-size:11px;color:#4a5568;">
