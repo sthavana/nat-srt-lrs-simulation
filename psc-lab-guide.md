@@ -1,12 +1,15 @@
-# PSC Lab Guide — Self-Contained SRT-over-PSC Test
+# PSC Lab Guide — Cross-Project SRT-over-PSC Simulation
 
 ## What Are We Building?
 
-We're simulating the **Globo ↔ LRS** Private Service Connect setup entirely within one GCP project. Instead of needing access to the real LRS project, we create **two isolated VPCs** — one pretending to be Globo (customer), the other pretending to be LRS (Harmonic) — and connect them via PSC.
+We're replicating the **real Globo ↔ LRS** Private Service Connect setup using **two separate GCP projects** — exactly how it works in production. One project simulates Globo (customer), the other simulates Harmonic LRS (producer).
 
 ```
+  PROJECT 1: project-ea255408-241f-4c48-8e8                     PROJECT 2: lrs-harmonic
+  (Globo — Customer / Consumer)              (Harmonic — LRS / Producer)
+
 ┌──────────────────────────┐              ┌──────────────────────────┐
-│  "Globo" VPC             │     PSC      │  "LRS" VPC               │
+│  Globo VPC               │     PSC      │  LRS VPC                 │
 │  10.100.0.0/24           │◄────────────►│  10.200.0.0/24           │
 │                          │              │                          │
 │  ┌────────────────────┐  │              │  ┌────────────────────┐  │
@@ -15,183 +18,132 @@ We're simulating the **Globo ↔ LRS** Private Service Connect setup entirely wi
 │  └────────────────────┘  │              │  └────────────────────┘  │
 │                          │              │                          │
 │  Network Attachment      │              │  PSC Interface           │
-│  (Consumer)              │              │  (Producer — gets IP     │
-│                          │              │   from Globo's subnet)   │
+│  (Consumer — controls    │              │  (Producer — gets IP     │
+│   who can connect)       │              │   from Globo's subnet)   │
 └──────────────────────────┘              └──────────────────────────┘
-
-Both VPCs in project: srt-sources
 ```
 
-**Why this works as a simulation:** In the real setup, the "LRS" VPC would be in Harmonic's project and the "Globo" VPC in the customer's project. PSC works the same way whether the VPCs are in the same project or different projects. Once this lab works, the exact same steps apply to the real deployment.
+**Why two projects?** This is how PSC works in the real world — the customer and Harmonic are in **different GCP projects**. The customer controls access via the Network Attachment, and Harmonic connects via the PSC Interface. Using two projects validates the cross-project trust model (project ID allowlisting).
 
 ---
 
 ## Prerequisites
 
-- GCP account with free trial credits ($300)
-- Cloud Shell access (or `gcloud` CLI locally)
-- Project: `srt-sources`
+- GCP account with free trial credits
+- Cloud Shell access
+- Both projects under the same billing account
 
 ---
 
-## Setup — Environment Variables
+## Setup — Create Two Projects
 
-> **What:** Set shell variables used by every command in the guide. This avoids hardcoding project/region in each command.
+> **What:** We need two separate GCP projects to simulate the two organisations. Both projects share your billing account so the free credits cover everything.
+
+### Step 1: Set the Globo project
+
+Your default project `project-ea255408-241f-4c48-8e8` ("My First Project") will be the Globo (customer) project.
 
 ```bash
-export PROJECT_ID="srt-sources"
+gcloud config set project project-ea255408-241f-4c48-8e8
+```
+
+### Step 2: Create the LRS project (Harmonic)
+
+> **What:** Create a second project to simulate Harmonic's LRS environment. This is a completely separate project with its own VPC, VMs, and firewall rules — just like in production.
+
+```bash
+gcloud projects create lrs-harmonic --name="LRS Harmonic"
+```
+
+### Step 3: Link the LRS project to your billing account
+
+> **What:** The new project needs a billing account to create resources. Link it to the same billing account as `srt-sources` so your free credits cover both.
+
+```bash
+# Find your billing account ID
+gcloud billing accounts list
+
+# Link it (replace YOUR_BILLING_ACCOUNT_ID with the ID from above)
+gcloud billing projects link lrs-harmonic \
+  --billing-account=YOUR_BILLING_ACCOUNT_ID
+```
+
+### Step 4: Enable Compute Engine API in both projects
+
+> **What:** The Compute Engine API must be enabled before creating VPCs, VMs, or firewall rules.
+
+```bash
+gcloud services enable compute.googleapis.com --project=project-ea255408-241f-4c48-8e8
+gcloud services enable compute.googleapis.com --project=lrs-harmonic
+```
+
+### Step 5: Set environment variables
+
+> **What:** Set shell variables for both projects. We'll reference `$GLOBO_PROJECT` and `$LRS_PROJECT` throughout the guide to make it clear which project each command targets.
+
+```bash
+export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
+export LRS_PROJECT="lrs-harmonic"
 export REGION="us-west1"
 export ZONE="us-west1-a"
 ```
 
-> **What:** Enable the Compute Engine API. Required before creating any VMs, VPCs, or firewall rules.
-
-```bash
-gcloud services enable compute.googleapis.com --project=$PROJECT_ID
-```
-
 ---
 
-## Part 1 — Create the "Customer" VPC (Simulating Globo)
+## Part 1 — Create the Globo VPC (Customer / Consumer)
 
-> **What we're achieving:** Building Globo's network environment. In the real world, Globo already has a VPC with their SRT encoders. Here we create a fresh VPC to simulate it.
+> **What we're achieving:** Building Globo's network environment in project `project-ea255408-241f-4c48-8e8`. In the real world, Globo already has a VPC with their SRT encoders connected via Google Direct Connect from their headend. Here we create a VPC and a VM to simulate that.
 
-### Step 1: Create the Customer VPC
+### Step 6: Create the Globo VPC and subnet
 
-> **What:** A VPC (Virtual Private Cloud) is an isolated network. `--subnet-mode=custom` means we manually define subnets (no auto-created ones). This gives us full control over IP ranges and regions.
+> **What:** A VPC is an isolated network. The subnet defines the IP range and region. This subnet is where:
+> - The Globo SRT source VM will live
+> - The **Network Attachment** will be created (PSC consumer side)
+> - The PSC Interface will get its IP from (making LRS reachable from Globo's network)
 
 ```bash
 gcloud compute networks create globo-vpc \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --subnet-mode=custom
-```
 
-### Step 2: Create a subnet in the Customer VPC
-
-> **What:** A subnet defines an IP range within a VPC, tied to a specific region. This is where the Globo SRT source VM will get its IP, and where the **Network Attachment** will be created later. The PSC Interface on the LRS VM will also get its IP from this subnet — that's how the two VPCs talk to each other.
-
-```bash
 gcloud compute networks subnets create globo-subnet \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --region=$REGION \
   --range=10.100.0.0/24
 ```
 
-> This gives us 254 usable IPs (10.100.0.1 – 10.100.0.254).
+### Step 7: Create firewall rules for Globo VPC
 
-### Step 3: Create firewall rules for the Customer VPC
-
-> **What:** VPCs block all traffic by default. We need rules to allow: (1) SSH access via Google IAP so we can log into the VM, and (2) internal traffic between VMs in the subnet.
+> **What:** GCP VPCs block all traffic by default. We need:
+> - SSH via IAP (so we can log into the VM without a public IP)
+> - Internal traffic (so VMs in the subnet can talk to each other and to the PSC Interface IP)
 
 ```bash
-# Rule 1: Allow SSH via IAP (Identity-Aware Proxy)
-# 35.235.240.0/20 is Google's IAP IP range. This lets us SSH into VMs
-# that have NO public IP — Google tunnels the SSH connection through IAP.
+# Allow SSH via IAP (35.235.240.0/20 = Google's IAP tunnel IP range)
 gcloud compute firewall-rules create globo-allow-iap-ssh \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --allow=tcp:22 \
   --source-ranges=35.235.240.0/20 \
   --description="Allow SSH via IAP"
 
-# Rule 2: Allow all traffic within the subnet (VM to VM)
+# Allow all internal traffic within the subnet
 gcloud compute firewall-rules create globo-allow-internal \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --allow=all \
   --source-ranges=10.100.0.0/24 \
   --description="Allow internal VPC traffic"
 ```
 
----
+### Step 8: Create the Globo SRT Source VM
 
-## Part 2 — Create the "LRS" VPC (Simulating Harmonic LRS)
-
-> **What we're achieving:** Building the Harmonic LRS network. In reality, this is a separate GCP project managed by Harmonic. Here we simulate it as a second VPC in the same project. The key point: **the two VPCs are completely isolated from each other** — just like two VPCs in different projects. The only way they'll communicate is through PSC.
-
-### Step 4: Create the LRS VPC
-
-> **What:** A separate isolated network for the LRS side. Uses a different IP range (10.200.x.x) to make it clear these are two different networks.
-
-```bash
-gcloud compute networks create lrs-vpc \
-  --project=$PROJECT_ID \
-  --subnet-mode=custom
-```
-
-### Step 5: Create a subnet in the LRS VPC
-
-> **What:** The LRS VM's primary network interface will sit in this subnet. Note the different CIDR range (10.200.0.0/24) — completely separate from Globo's 10.100.0.0/24.
-
-```bash
-gcloud compute networks subnets create lrs-subnet \
-  --project=$PROJECT_ID \
-  --network=lrs-vpc \
-  --region=$REGION \
-  --range=10.200.0.0/24
-```
-
-### Step 6: Create firewall rules for the LRS VPC
-
-> **What:** Same pattern as Globo — SSH via IAP and internal traffic. Plus one additional rule: allow SRT (UDP port 7086) traffic arriving from the **customer's subnet via PSC**. The PSC interface will have an IP from 10.100.0.0/24 (Globo's subnet), so we allow that range.
-
-```bash
-# Allow SSH via IAP
-gcloud compute firewall-rules create lrs-allow-iap-ssh \
-  --project=$PROJECT_ID \
-  --network=lrs-vpc \
-  --allow=tcp:22 \
-  --source-ranges=35.235.240.0/20 \
-  --description="Allow SSH via IAP"
-
-# Allow all internal traffic within LRS VPC
-gcloud compute firewall-rules create lrs-allow-internal \
-  --project=$PROJECT_ID \
-  --network=lrs-vpc \
-  --allow=all \
-  --source-ranges=10.200.0.0/24 \
-  --description="Allow internal VPC traffic"
-
-# Allow SRT traffic from customer VPC via PSC
-# The PSC interface gets an IP from Globo's subnet (10.100.0.0/24),
-# so SRT packets arriving on the LRS VM will have a source IP from that range.
-gcloud compute firewall-rules create lrs-allow-srt-from-psc \
-  --project=$PROJECT_ID \
-  --network=lrs-vpc \
-  --allow=udp:7086 \
-  --source-ranges=10.100.0.0/24 \
-  --description="Allow SRT traffic from customer VPC via PSC"
-```
-
----
-
-## Part 3 — Create the VMs
-
-> **What we're achieving:** Creating the two endpoints of our SRT stream — the Listener (simulating LRS Cloud Source) and the Caller (simulating Globo's SRT encoder). Both VMs have **no public IP** (`no-address`), which mirrors the real scenario where traffic flows privately via PSC, not over the public internet.
-
-### Step 7: Create the SRT Listener VM (simulating LRS Cloud Source)
-
-> **What:** This VM sits in the LRS VPC and will run `srt-live-transmit` in listener mode on port 7086 — exactly what the real LRS Cloud Source does. `no-address` means no public IP.
-
-```bash
-gcloud compute instances create lrs-srt-listener \
-  --project=$PROJECT_ID \
-  --zone=$ZONE \
-  --machine-type=e2-medium \
-  --network-interface=network=lrs-vpc,subnet=lrs-subnet,no-address \
-  --image-family=ubuntu-2204-lts \
-  --image-project=ubuntu-os-cloud \
-  --boot-disk-size=20GB
-```
-
-### Step 8: Create the SRT Caller VM (simulating Globo SRT Source)
-
-> **What:** This VM sits in the Globo VPC and will run `ffmpeg` or `srt-live-transmit` in caller mode — simulating Globo's SRT encoder sending a stream to LRS.
+> **What:** This VM simulates Globo's SRT encoder. It runs in the Globo VPC with **no public IP** (`no-address`), just like a real encoder behind Google Direct Connect. We'll use `ffmpeg` to generate a test stream and send it as an **SRT Caller** to the LRS Listener.
 
 ```bash
 gcloud compute instances create globo-srt-source \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --zone=$ZONE \
   --machine-type=e2-medium \
   --network-interface=network=globo-vpc,subnet=globo-subnet,no-address \
@@ -200,68 +152,36 @@ gcloud compute instances create globo-srt-source \
   --boot-disk-size=20GB
 ```
 
-### Step 9: Add Cloud NAT for both VPCs
+### Step 9: Add Cloud NAT for Globo VPC
 
-> **What:** Our VMs have no public IP, so they can't reach the internet directly. But we need internet access to install packages (`apt-get`). Cloud NAT lets VMs access the internet for outbound connections (like downloading packages) without having a public IP. We need one per VPC.
+> **What:** The VM has no public IP, so it can't reach the internet to install packages. Cloud NAT provides outbound internet access (for `apt-get install`) without requiring a public IP on the VM.
 
 ```bash
-# Cloud NAT for Globo VPC
 gcloud compute routers create globo-router \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --region=$REGION
 
 gcloud compute routers nats create globo-nat \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --router=globo-router \
   --region=$REGION \
   --auto-allocate-nat-external-ips \
   --nat-all-subnet-ip-ranges
-
-# Cloud NAT for LRS VPC
-gcloud compute routers create lrs-router \
-  --project=$PROJECT_ID \
-  --network=lrs-vpc \
-  --region=$REGION
-
-gcloud compute routers nats create lrs-nat \
-  --project=$PROJECT_ID \
-  --router=lrs-router \
-  --region=$REGION \
-  --auto-allocate-nat-external-ips \
-  --nat-all-subnet-ip-ranges
 ```
 
-### Step 10: Install SRT tools on both VMs
+### Step 10: Install SRT tools on the Globo VM
 
-> **What:** Install the SRT command-line tools (`srt-live-transmit`) and `ffmpeg` (for generating a test video stream). We SSH in via IAP tunnel since the VMs have no public IP.
-
-**SSH into the LRS Listener VM:**
-
-```bash
-gcloud compute ssh lrs-srt-listener \
-  --project=$PROJECT_ID \
-  --zone=$ZONE \
-  --tunnel-through-iap
-```
-
-Inside the VM, run:
-
-```bash
-sudo apt-get update && sudo apt-get install -y srt-tools
-exit
-```
-
-**SSH into the Globo Caller VM:**
+> **What:** Install `ffmpeg` (to generate a test video stream) and `srt-tools` (provides `srt-live-transmit` for SRT streaming).
 
 ```bash
 gcloud compute ssh globo-srt-source \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --zone=$ZONE \
   --tunnel-through-iap
 ```
 
-Inside the VM, run:
+Inside the VM:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y srt-tools ffmpeg
@@ -270,97 +190,201 @@ exit
 
 ---
 
-## Part 4 — Set Up Private Service Connect
+## Part 2 — Create the LRS VPC (Harmonic / Producer)
 
-> **What we're achieving:** This is the core of the lab. We create the PSC plumbing that connects the two isolated VPCs. In the real Globo setup, this is exactly what Globo (customer) and Harmonic (LRS) would do — Globo creates a Network Attachment in their VPC, and Harmonic attaches a PSC Interface to the LRS VM.
+> **What we're achieving:** Building Harmonic's LRS environment in a **separate project** (`lrs-harmonic`). This is a completely different GCP project — the two projects have no network connectivity by default. The only way they'll communicate is through PSC. This mirrors the real-world separation between Globo and Harmonic.
 
-### Step 11: Create the Network Attachment (Customer/Globo side)
+### Step 11: Create the LRS VPC and subnet
 
-> **What:** A Network Attachment is the customer's side of PSC. It's a resource in the customer's subnet that says: "I allow project X to create a PSC interface that connects into my network." `ACCEPT_MANUAL` means only explicitly approved projects can connect — this is the security control that makes PSC better than VPC peering.
+> **What:** The LRS VM's primary network interface sits in this VPC/subnet. This is Harmonic's internal network — the customer (Globo) has no visibility into it.
+
+```bash
+gcloud compute networks create lrs-vpc \
+  --project=$LRS_PROJECT \
+  --subnet-mode=custom
+
+gcloud compute networks subnets create lrs-subnet \
+  --project=$LRS_PROJECT \
+  --network=lrs-vpc \
+  --region=$REGION \
+  --range=10.200.0.0/24
+```
+
+### Step 12: Create firewall rules for LRS VPC
+
+> **What:** Same pattern — SSH via IAP, internal traffic, plus one critical rule: allow **SRT traffic (UDP 7086) arriving from the customer's subnet** via the PSC Interface. The PSC Interface gets an IP from Globo's subnet (10.100.0.0/24), so SRT packets arrive with source IPs from that range.
+
+```bash
+# Allow SSH via IAP
+gcloud compute firewall-rules create lrs-allow-iap-ssh \
+  --project=$LRS_PROJECT \
+  --network=lrs-vpc \
+  --allow=tcp:22 \
+  --source-ranges=35.235.240.0/20 \
+  --description="Allow SSH via IAP"
+
+# Allow all internal traffic within LRS VPC
+gcloud compute firewall-rules create lrs-allow-internal \
+  --project=$LRS_PROJECT \
+  --network=lrs-vpc \
+  --allow=all \
+  --source-ranges=10.200.0.0/24 \
+  --description="Allow internal VPC traffic"
+
+# Allow SRT traffic arriving via PSC from customer's subnet
+gcloud compute firewall-rules create lrs-allow-srt-from-psc \
+  --project=$LRS_PROJECT \
+  --network=lrs-vpc \
+  --allow=udp:7086 \
+  --source-ranges=10.100.0.0/24 \
+  --description="Allow SRT from customer VPC via PSC"
+```
+
+### Step 13: Create the LRS SRT Listener VM
+
+> **What:** This VM simulates the **LRS Cloud Source**. It runs `srt-live-transmit` in **Listener mode** on port 7086 — accepting incoming SRT connections from Globo's encoders. It has no public IP.
+
+```bash
+gcloud compute instances create lrs-srt-listener \
+  --project=$LRS_PROJECT \
+  --zone=$ZONE \
+  --machine-type=e2-medium \
+  --network-interface=network=lrs-vpc,subnet=lrs-subnet,no-address \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=20GB
+```
+
+### Step 14: Add Cloud NAT for LRS VPC
+
+> **What:** Same as Globo — the LRS VM needs outbound internet to install packages.
+
+```bash
+gcloud compute routers create lrs-router \
+  --project=$LRS_PROJECT \
+  --network=lrs-vpc \
+  --region=$REGION
+
+gcloud compute routers nats create lrs-nat \
+  --project=$LRS_PROJECT \
+  --router=lrs-router \
+  --region=$REGION \
+  --auto-allocate-nat-external-ips \
+  --nat-all-subnet-ip-ranges
+```
+
+### Step 15: Install SRT tools on the LRS VM
+
+```bash
+gcloud compute ssh lrs-srt-listener \
+  --project=$LRS_PROJECT \
+  --zone=$ZONE \
+  --tunnel-through-iap
+```
+
+Inside the VM:
+
+```bash
+sudo apt-get update && sudo apt-get install -y srt-tools
+exit
+```
+
+---
+
+## Part 3 — Set Up Private Service Connect
+
+> **What we're achieving:** This is the core of the lab — connecting two separate GCP projects via PSC. Globo (Consumer) creates a Network Attachment in their VPC. Harmonic (Producer) adds a PSC Interface to the LRS VM, connecting it to Globo's Network Attachment. The LRS VM then gets an IP in Globo's subnet — making it reachable from Globo's SRT sources.
+
+### Step 16: Create the Network Attachment (Globo — Consumer side)
+
+> **What:** The Network Attachment is Globo's side of PSC. It says: "I allow project `lrs-harmonic` to create a PSC Interface into my subnet." The `ACCEPT_MANUAL` flag means only explicitly listed projects can connect — this is the access control that replaces VPC peering.
 >
-> **In the real setup:** Globo creates this in their VPC and adds Harmonic's LRS project ID to the accepted list. Here, both VPCs are in the same project, so we accept our own project ID.
+> **In the real setup:** Globo creates this and adds Harmonic's LRS project ID to the `--producer-accept-list`. Here we add `lrs-harmonic`.
 
 ```bash
 gcloud compute network-attachments create globo-psc-attachment \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --region=$REGION \
   --subnets=globo-subnet \
   --connection-preference=ACCEPT_MANUAL \
-  --producer-accept-list=$PROJECT_ID
+  --producer-accept-list=$LRS_PROJECT
 ```
 
-### Step 12: Get the Network Attachment URL
+### Step 17: Get the Network Attachment URL
 
-> **What:** Every Network Attachment has a unique URL. The LRS side needs this URL to create a PSC Interface. In the real setup, Globo would send this URL to Harmonic.
+> **What:** The Network Attachment has a unique URL that Harmonic needs to create the PSC Interface. In the real setup, Globo sends this URL to Harmonic. Here we retrieve it ourselves.
 
 ```bash
 gcloud compute network-attachments describe globo-psc-attachment \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --region=$REGION \
   --format="value(selfLink)"
 ```
 
 Save the output — it looks like:
 ```
-projects/srt-sources/regions/us-west1/networkAttachments/globo-psc-attachment
+projects/project-ea255408-241f-4c48-8e8/regions/us-west1/networkAttachments/globo-psc-attachment
 ```
 
-### Step 13: Stop the LRS VM and add the PSC Interface
+### Step 18: Stop the LRS VM and add the PSC Interface (Harmonic — Producer side)
 
-> **What:** This is the Harmonic/LRS side of PSC. We add a **second network interface (PSC Interface)** to the LRS VM. This interface connects to the customer's Network Attachment, and GCP assigns it an IP address from the **customer's subnet** (10.100.0.0/24). After this, the LRS VM has two NICs:
+> **What:** This is Harmonic's side of PSC. We add a **second network interface (PSC Interface)** to the LRS VM in the `lrs-harmonic` project. This interface connects to Globo's Network Attachment in the `srt-sources` project. GCP assigns it an IP from **Globo's subnet** (10.100.0.0/24).
 >
-> - **NIC 1 (primary):** Connected to the LRS VPC (10.200.0.x)
-> - **NIC 2 (PSC):** Connected to the Globo VPC via Network Attachment (10.100.0.x)
+> After this, the LRS VM has **two NICs**:
+> - **NIC 1 (primary):** In the LRS VPC (10.200.0.x) — Harmonic's internal network
+> - **NIC 2 (PSC):** In the Globo VPC (10.100.0.x) — reachable from Globo's SRT sources
 >
-> The VM must be stopped to add a new network interface — this is a GCP requirement.
+> The VM must be stopped to add a network interface — GCP requirement.
 
 ```bash
-# Stop the LRS Listener VM
+# Stop the LRS VM
 gcloud compute instances stop lrs-srt-listener \
-  --project=$PROJECT_ID \
+  --project=$LRS_PROJECT \
   --zone=$ZONE
 
-# Add the PSC interface — this creates NIC 2 connected to Globo's VPC
+# Add PSC Interface — connects to Globo's Network Attachment (cross-project!)
 gcloud compute instances add-network-interface lrs-srt-listener \
-  --project=$PROJECT_ID \
+  --project=$LRS_PROJECT \
   --zone=$ZONE \
-  --network-attachment=projects/$PROJECT_ID/regions/$REGION/networkAttachments/globo-psc-attachment
+  --network-attachment=projects/$GLOBO_PROJECT/regions/$REGION/networkAttachments/globo-psc-attachment
 
 # Start the VM
 gcloud compute instances start lrs-srt-listener \
-  --project=$PROJECT_ID \
+  --project=$LRS_PROJECT \
   --zone=$ZONE
 ```
 
-### Step 14: Get the PSC Interface IP
+> Note the cross-project reference: the LRS VM in `lrs-harmonic` is connecting to a Network Attachment in `srt-sources`. This only works because Globo added `lrs-harmonic` to the `--producer-accept-list`.
 
-> **What:** Find the IP that GCP assigned to the PSC Interface. This IP is from the **Globo subnet** (10.100.0.x), which means it's reachable from VMs in the Globo VPC. This is the IP that Globo's SRT sources will connect to.
+### Step 19: Get the PSC Interface IP
+
+> **What:** Find the IP that GCP assigned to the PSC Interface. This IP comes from **Globo's subnet** (10.100.0.x), making the LRS VM reachable from Globo's VPC. This is the IP that Globo's SRT sources connect to.
 
 ```bash
 gcloud compute instances describe lrs-srt-listener \
-  --project=$PROJECT_ID \
+  --project=$LRS_PROJECT \
   --zone=$ZONE \
   --format="json(networkInterfaces)"
 ```
 
-In the output, look for the network interface that has a `networkAttachment` field. The `networkIP` is the PSC IP. Example: `10.100.0.2`
+In the output, find the network interface with a `networkAttachment` field. The `networkIP` is the PSC IP (e.g. `10.100.0.2`).
 
 ```bash
-export PSC_IP="10.100.0.2"   # ← replace with the actual IP from the output above
+export PSC_IP="10.100.0.2"   # ← replace with actual IP from output
 ```
 
 ---
 
-## Part 5 — Configure SRT Firewall Rules
+## Part 4 — Configure SRT Firewall Rules
 
-> **What we're achieving:** SRT uses bidirectional UDP. The Caller (Globo) initiates the connection, but SRT's handshake, ACKs, NAKs, and retransmitted packets flow in both directions. We need firewall rules allowing UDP port 7086 both out (to the PSC IP) and back in (from the PSC IP).
+> **What we're achieving:** SRT uses **bidirectional UDP**. The Caller (Globo) initiates the connection, but SRT's handshake, ACKs, NAKs, and retransmitted packets flow in both directions. We need firewall rules in the **Globo VPC** allowing UDP 7086 both out to the PSC IP and back in from the PSC IP.
 
-### Step 15: Allow SRT traffic in the Customer VPC
+### Step 20: Allow SRT traffic in the Globo VPC
 
 ```bash
 # Egress: allow Globo VM to send SRT packets to the PSC IP
 gcloud compute firewall-rules create globo-allow-srt-egress \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --direction=EGRESS \
   --allow=udp:7086 \
@@ -369,7 +393,7 @@ gcloud compute firewall-rules create globo-allow-srt-egress \
 
 # Ingress: allow SRT return traffic (ACKs, NAKs, retransmits) from the PSC IP
 gcloud compute firewall-rules create globo-allow-srt-ingress \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --network=globo-vpc \
   --direction=INGRESS \
   --allow=udp:7086 \
@@ -379,19 +403,19 @@ gcloud compute firewall-rules create globo-allow-srt-ingress \
 
 ---
 
-## Part 6 — Stream and Verify
+## Part 5 — Stream and Verify
 
-> **What we're achieving:** The moment of truth — send an SRT stream from the Globo VM (Caller) through the PSC connection to the LRS VM (Listener). If this works, it proves that SRT over PSC is viable and we can use the same pattern for the real Globo deployment.
+> **What we're achieving:** The moment of truth — send an SRT stream from the Globo VM (Caller, project `project-ea255408-241f-4c48-8e8`) through PSC to the LRS VM (Listener, project `lrs-harmonic`). If this works, we've proven that **SRT over cross-project PSC works** and the same setup applies to the real Globo deployment.
 
-### Step 16: Start the SRT Listener on the LRS VM
+### Step 21: Start the SRT Listener on the LRS VM
 
-> **What:** Start an SRT Listener on the LRS VM. It must bind to `0.0.0.0` (all interfaces) — not just the primary NIC IP — because SRT traffic arrives on the PSC interface (NIC 2).
+> **What:** Start an SRT Listener on the LRS VM. It must bind to `0.0.0.0` (all interfaces) so it accepts traffic on the PSC interface (NIC 2), not just the primary NIC.
 
-SSH into the LRS VM:
+SSH into the LRS VM (in the LRS project):
 
 ```bash
 gcloud compute ssh lrs-srt-listener \
-  --project=$PROJECT_ID \
+  --project=$LRS_PROJECT \
   --zone=$ZONE \
   --tunnel-through-iap
 ```
@@ -404,28 +428,28 @@ srt-live-transmit "srt://0.0.0.0:7086?mode=listener" "file:///dev/null" -v
 
 > You should see it waiting for a connection. **Leave this running.** Open a **second Cloud Shell tab** for the next step.
 
-### Step 17: Start the SRT Caller on the Globo VM
+### Step 22: Start the SRT Caller on the Globo VM
 
-> **What:** Send a test video stream from the Globo VM to the LRS Listener via PSC. `ffmpeg` generates a colour bar test pattern with a 1kHz tone, encodes it as H.264/AAC in MPEG-TS, and sends it over SRT in Caller mode.
+> **What:** Send a test video stream from the Globo VM to the LRS Listener via PSC. `ffmpeg` generates a colour bar test pattern with a 1kHz tone, encodes it as H.264/AAC in MPEG-TS, and sends it over SRT in **Caller mode** to the PSC Interface IP.
 
-In the **second Cloud Shell tab**, set variables again (new shell session):
+In the **second Cloud Shell tab**, set variables (new shell session):
 
 ```bash
-export PROJECT_ID="srt-sources"
+export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
 export ZONE="us-west1-a"
 export PSC_IP="10.100.0.2"   # ← use your actual PSC IP
 ```
 
-SSH into the Globo VM:
+SSH into the Globo VM (in the Globo project):
 
 ```bash
 gcloud compute ssh globo-srt-source \
-  --project=$PROJECT_ID \
+  --project=$GLOBO_PROJECT \
   --zone=$ZONE \
   --tunnel-through-iap
 ```
 
-Inside the VM, send the test stream (replace the IP if different):
+Inside the VM, send the test stream (replace IP if different):
 
 ```bash
 ffmpeg -re -f lavfi -i testsrc=size=1280x720:rate=30 \
@@ -435,20 +459,20 @@ ffmpeg -re -f lavfi -i testsrc=size=1280x720:rate=30 \
   -f mpegts "srt://10.100.0.2:7086?mode=caller"
 ```
 
-### Step 18: Verify — What Success Looks Like
+### Step 23: Verify — What Success Looks Like
 
-**Terminal 1 (LRS Listener)** should show:
+**Terminal 1 — LRS Listener** (project: `lrs-harmonic`) should show:
 ```
 SRT connected
 ...receiving data bytes...
 ```
 
-**Terminal 2 (Globo Caller / ffmpeg)** should show:
+**Terminal 2 — Globo Caller / ffmpeg** (project: `project-ea255408-241f-4c48-8e8`) should show:
 ```
 frame=  120 fps= 30 q=20.0 size=    1024kB time=00:00:04.00 bitrate=2048.0kbits/s
 ```
 
-If both terminals show this — **PSC + SRT is validated!**
+If both terminals show this — **cross-project PSC + SRT is validated!**
 
 ### Troubleshooting
 
@@ -464,87 +488,115 @@ nc -zuv 10.100.0.2 7086
 # On the LRS VM — verify the PSC interface exists (should see two NICs)
 ip addr show
 # Expected:
-#   ens4: 10.200.0.x  ← primary NIC (LRS VPC)
-#   ens5: 10.100.0.x  ← PSC interface (Globo VPC)
+#   ens4: 10.200.0.x  ← NIC 1: primary, LRS VPC (lrs-harmonic project)
+#   ens5: 10.100.0.x  ← NIC 2: PSC interface, Globo VPC (srt-sources project)
 ```
 
 **Common issues:**
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| Connection timeout | Firewall rules missing | Check both VPCs have the SRT rules (Part 5) |
+| `add-network-interface` fails | Network Attachment not accepting LRS project | Check `--producer-accept-list` includes `lrs-harmonic` |
+| Connection timeout | Firewall rules missing | Check Globo VPC (Part 4) and LRS VPC (Step 12) rules |
 | Connection refused | Listener not running | Make sure `srt-live-transmit` is running on LRS VM |
 | Listener doesn't see traffic | Bound to wrong interface | Must use `0.0.0.0`, not `10.200.0.x` |
-| PSC Interface not created | Network Attachment rejected | Check: `gcloud compute network-attachments describe globo-psc-attachment --region=$REGION` |
+| PSC Interface no IP | Network Attachment status | `gcloud compute network-attachments describe globo-psc-attachment --project=$GLOBO_PROJECT --region=$REGION` |
 
 ---
 
 ## What This Proves
 
-| What | Validated | Real-World Equivalent |
-|------|-----------|----------------------|
-| Network Attachment creation | ✓ | Globo creates this in their VPC |
-| PSC Interface provisioning | ✓ | Harmonic creates this on the LRS VM |
-| PSC gives LRS VM an IP in customer's subnet | ✓ | LRS becomes reachable from Globo's network |
+| What | Validated | Maps to Real Setup |
+|------|-----------|-------------------|
+| Cross-project PSC works | ✓ | Globo project ↔ Harmonic LRS project |
+| Network Attachment controls access | ✓ | Globo chooses which project can connect |
+| PSC Interface gives LRS an IP in customer subnet | ✓ | LRS reachable from Globo's VPC |
 | SRT Caller → PSC → SRT Listener | ✓ | Globo encoder → PSC → LRS Cloud Source |
-| Bidirectional UDP flows through PSC | ✓ | SRT handshake + ARQ works over PSC |
-| Firewall rules for SRT over PSC | ✓ | Globo configures these in their VPC |
+| Bidirectional UDP (SRT handshake + data) | ✓ | SRT ARQ recovery works over PSC |
+| Cross-project firewall rules | ✓ | Each side manages their own firewall |
 
 **What's different in production:**
-- The "LRS" VPC is in Harmonic's project (different from Globo's project)
-- LRS Cloud Source handles the SRT Listener automatically (no need to run `srt-live-transmit` manually)
-- LRS connects to VOS 360 via VPC Peering (Harmonic's internal setup — not part of PSC)
-- The customer (Globo) side — Network Attachment, firewall rules, SRT Caller config — is **identical** to what we tested here
+- Harmonic's LRS project is managed by Harmonic (you won't create it — it already exists)
+- LRS Cloud Source handles the SRT Listener automatically (no manual `srt-live-transmit`)
+- LRS connects to VOS 360 via **VPC Peering** (Harmonic internal — not part of PSC)
+- The customer side (Network Attachment, firewall rules, SRT Caller config) is **identical** to what we tested
 
 ---
 
 ## Cleanup
 
-> **Important:** Run this when you're done testing to stop incurring charges. The VMs and Cloud NAT cost ~$0.16/hr total.
+> **Important:** Run this when done testing to stop charges. VMs + Cloud NAT cost ~$0.16/hr total across both projects.
+
+### Cleanup Globo project
 
 ```bash
-export PROJECT_ID="srt-sources"
+export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
 export REGION="us-west1"
 export ZONE="us-west1-a"
 
-# Delete VMs
-gcloud compute instances delete globo-srt-source lrs-srt-listener \
-  --project=$PROJECT_ID --zone=$ZONE --quiet
+# Delete VM
+gcloud compute instances delete globo-srt-source \
+  --project=$GLOBO_PROJECT --zone=$ZONE --quiet
 
 # Delete firewall rules
 gcloud compute firewall-rules delete \
   globo-allow-iap-ssh globo-allow-internal globo-allow-srt-egress globo-allow-srt-ingress \
-  lrs-allow-iap-ssh lrs-allow-internal lrs-allow-srt-from-psc \
-  --project=$PROJECT_ID --quiet
+  --project=$GLOBO_PROJECT --quiet
 
-# Delete Cloud NAT and Routers
+# Delete Cloud NAT and Router
 gcloud compute routers nats delete globo-nat --router=globo-router \
-  --project=$PROJECT_ID --region=$REGION --quiet
+  --project=$GLOBO_PROJECT --region=$REGION --quiet
 gcloud compute routers delete globo-router \
-  --project=$PROJECT_ID --region=$REGION --quiet
-gcloud compute routers nats delete lrs-nat --router=lrs-router \
-  --project=$PROJECT_ID --region=$REGION --quiet
-gcloud compute routers delete lrs-router \
-  --project=$PROJECT_ID --region=$REGION --quiet
+  --project=$GLOBO_PROJECT --region=$REGION --quiet
 
 # Delete Network Attachment
 gcloud compute network-attachments delete globo-psc-attachment \
-  --project=$PROJECT_ID --region=$REGION --quiet
+  --project=$GLOBO_PROJECT --region=$REGION --quiet
 
-# Delete subnets
-gcloud compute networks subnets delete globo-subnet lrs-subnet \
-  --project=$PROJECT_ID --region=$REGION --quiet
-
-# Delete VPCs
-gcloud compute networks delete globo-vpc lrs-vpc \
-  --project=$PROJECT_ID --quiet
+# Delete subnet and VPC
+gcloud compute networks subnets delete globo-subnet \
+  --project=$GLOBO_PROJECT --region=$REGION --quiet
+gcloud compute networks delete globo-vpc \
+  --project=$GLOBO_PROJECT --quiet
 ```
 
-After cleanup, verify nothing is left:
+### Cleanup LRS project (lrs-harmonic)
 
 ```bash
-gcloud compute instances list --project=$PROJECT_ID
-gcloud compute networks list --project=$PROJECT_ID
+export LRS_PROJECT="lrs-harmonic"
+
+# Delete VM (PSC interface is removed when VM is deleted)
+gcloud compute instances delete lrs-srt-listener \
+  --project=$LRS_PROJECT --zone=$ZONE --quiet
+
+# Delete firewall rules
+gcloud compute firewall-rules delete \
+  lrs-allow-iap-ssh lrs-allow-internal lrs-allow-srt-from-psc \
+  --project=$LRS_PROJECT --quiet
+
+# Delete Cloud NAT and Router
+gcloud compute routers nats delete lrs-nat --router=lrs-router \
+  --project=$LRS_PROJECT --region=$REGION --quiet
+gcloud compute routers delete lrs-router \
+  --project=$LRS_PROJECT --region=$REGION --quiet
+
+# Delete subnet and VPC
+gcloud compute networks subnets delete lrs-subnet \
+  --project=$LRS_PROJECT --region=$REGION --quiet
+gcloud compute networks delete lrs-vpc \
+  --project=$LRS_PROJECT --quiet
+
+# Optionally delete the entire LRS project
+# gcloud projects delete lrs-harmonic --quiet
 ```
 
-You should only see the `default` network (if it exists) and no VM instances.
+### Verify cleanup
+
+```bash
+gcloud compute instances list --project=project-ea255408-241f-4c48-8e8
+gcloud compute instances list --project=lrs-harmonic
+gcloud compute networks list --project=project-ea255408-241f-4c48-8e8
+gcloud compute networks list --project=lrs-harmonic
+```
+
+No VMs, only `default` networks (if any) should remain.
