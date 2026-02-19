@@ -5,7 +5,7 @@
 We're replicating the **real Globo ↔ LRS** Private Service Connect setup using **two separate GCP projects** — exactly how it works in production. One project simulates Globo (customer), the other simulates Harmonic LRS (producer).
 
 ```
-  PROJECT 1: project-ea255408-241f-4c48-8e8                     PROJECT 2: lrs-harmonic
+  PROJECT 1: globo-customer                     PROJECT 2: lrs-harmonic
   (Globo — Customer / Consumer)              (Harmonic — LRS / Producer)
 
 ┌──────────────────────────┐              ┌──────────────────────────┐
@@ -39,31 +39,27 @@ We're replicating the **real Globo ↔ LRS** Private Service Connect setup using
 
 > **What:** We need two separate GCP projects to simulate the two organisations. Both projects share your billing account so the free credits cover everything.
 
-### Step 1: Set the Globo project
+### Step 1: Create both projects
 
-Your default project `project-ea255408-241f-4c48-8e8` ("My First Project") will be the Globo (customer) project.
-
-```bash
-gcloud config set project project-ea255408-241f-4c48-8e8
-```
-
-### Step 2: Create the LRS project (Harmonic)
-
-> **What:** Create a second project to simulate Harmonic's LRS environment. This is a completely separate project with its own VPC, VMs, and firewall rules — just like in production.
+> **What:** Create two dedicated projects — one for Globo (customer) and one for LRS (Harmonic). Using named projects keeps things clean and mirrors the real-world separation.
 
 ```bash
+gcloud projects create globo-customer --name="Globo Customer"
 gcloud projects create lrs-harmonic --name="LRS Harmonic"
 ```
 
-### Step 3: Link the LRS project to your billing account
+### Step 3: Link both projects to your billing account
 
-> **What:** The new project needs a billing account to create resources. Link it to the same billing account as `srt-sources` so your free credits cover both.
+> **What:** Both projects need a billing account to create resources. Link them to your billing account so your free credits cover everything.
 
 ```bash
 # Find your billing account ID
 gcloud billing accounts list
 
-# Link it (replace YOUR_BILLING_ACCOUNT_ID with the ID from above)
+# Link both projects (replace YOUR_BILLING_ACCOUNT_ID with the ID from above)
+gcloud billing projects link globo-customer \
+  --billing-account=YOUR_BILLING_ACCOUNT_ID
+
 gcloud billing projects link lrs-harmonic \
   --billing-account=YOUR_BILLING_ACCOUNT_ID
 ```
@@ -73,8 +69,10 @@ gcloud billing projects link lrs-harmonic \
 > **What:** The Compute Engine API must be enabled before creating VPCs, VMs, or firewall rules.
 
 ```bash
-gcloud services enable compute.googleapis.com --project=project-ea255408-241f-4c48-8e8
+gcloud services enable compute.googleapis.com --project=globo-customer
 gcloud services enable compute.googleapis.com --project=lrs-harmonic
+gcloud services enable iap.googleapis.com --project=globo-customer
+gcloud services enable iap.googleapis.com --project=lrs-harmonic
 ```
 
 ### Step 5: Set environment variables
@@ -82,7 +80,7 @@ gcloud services enable compute.googleapis.com --project=lrs-harmonic
 > **What:** Set shell variables for both projects. We'll reference `$GLOBO_PROJECT` and `$LRS_PROJECT` throughout the guide to make it clear which project each command targets.
 
 ```bash
-export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
+export GLOBO_PROJECT="globo-customer"
 export LRS_PROJECT="lrs-harmonic"
 export REGION="us-west1"
 export ZONE="us-west1-a"
@@ -92,7 +90,7 @@ export ZONE="us-west1-a"
 
 ## Part 1 — Create the Globo VPC (Customer / Consumer)
 
-> **What we're achieving:** Building Globo's network environment in project `project-ea255408-241f-4c48-8e8`. In the real world, Globo already has a VPC with their SRT encoders connected via Google Direct Connect from their headend. Here we create a VPC and a VM to simulate that.
+> **What we're achieving:** Building Globo's network environment in project `globo-customer`. In the real world, Globo already has a VPC with their SRT encoders connected via Google Direct Connect from their headend. Here we create a VPC and a VM to simulate that.
 
 ### Step 6: Create the Globo VPC and subnet
 
@@ -323,12 +321,12 @@ gcloud compute network-attachments describe globo-psc-attachment \
 
 Save the output — it looks like:
 ```
-projects/project-ea255408-241f-4c48-8e8/regions/us-west1/networkAttachments/globo-psc-attachment
+projects/globo-customer/regions/us-west1/networkAttachments/globo-psc-attachment
 ```
 
 ### Step 18: Stop the LRS VM and add the PSC Interface (Harmonic — Producer side)
 
-> **What:** This is Harmonic's side of PSC. We add a **second network interface (PSC Interface)** to the LRS VM in the `lrs-harmonic` project. This interface connects to Globo's Network Attachment in the `srt-sources` project. GCP assigns it an IP from **Globo's subnet** (10.100.0.0/24).
+> **What:** This is Harmonic's side of PSC. We add a **second network interface (PSC Interface)** to the LRS VM in the `lrs-harmonic` project. This interface connects to Globo's Network Attachment in the `globo-customer` project. GCP assigns it an IP from **Globo's subnet** (10.100.0.0/24).
 >
 > After this, the LRS VM has **two NICs**:
 > - **NIC 1 (primary):** In the LRS VPC (10.200.0.x) — Harmonic's internal network
@@ -354,7 +352,7 @@ gcloud compute instances start lrs-srt-listener \
   --zone=$ZONE
 ```
 
-> Note the cross-project reference: the LRS VM in `lrs-harmonic` is connecting to a Network Attachment in `srt-sources`. This only works because Globo added `lrs-harmonic` to the `--producer-accept-list`.
+> Note the cross-project reference: the LRS VM in `lrs-harmonic` is connecting to a Network Attachment in `globo-customer`. This only works because Globo added `lrs-harmonic` to the `--producer-accept-list`.
 
 ### Step 19: Get the PSC Interface IP
 
@@ -405,7 +403,7 @@ gcloud compute firewall-rules create globo-allow-srt-ingress \
 
 ## Part 5 — Stream and Verify
 
-> **What we're achieving:** The moment of truth — send an SRT stream from the Globo VM (Caller, project `project-ea255408-241f-4c48-8e8`) through PSC to the LRS VM (Listener, project `lrs-harmonic`). If this works, we've proven that **SRT over cross-project PSC works** and the same setup applies to the real Globo deployment.
+> **What we're achieving:** The moment of truth — send an SRT stream from the Globo VM (Caller, project `globo-customer`) through PSC to the LRS VM (Listener, project `lrs-harmonic`). If this works, we've proven that **SRT over cross-project PSC works** and the same setup applies to the real Globo deployment.
 
 ### Step 21: Start the SRT Listener on the LRS VM
 
@@ -435,7 +433,7 @@ srt-live-transmit "srt://0.0.0.0:7086?mode=listener" "file:///dev/null" -v
 In the **second Cloud Shell tab**, set variables (new shell session):
 
 ```bash
-export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
+export GLOBO_PROJECT="globo-customer"
 export ZONE="us-west1-a"
 export PSC_IP="10.100.0.2"   # ← use your actual PSC IP
 ```
@@ -467,7 +465,7 @@ SRT connected
 ...receiving data bytes...
 ```
 
-**Terminal 2 — Globo Caller / ffmpeg** (project: `project-ea255408-241f-4c48-8e8`) should show:
+**Terminal 2 — Globo Caller / ffmpeg** (project: `globo-customer`) should show:
 ```
 frame=  120 fps= 30 q=20.0 size=    1024kB time=00:00:04.00 bitrate=2048.0kbits/s
 ```
@@ -530,7 +528,7 @@ ip addr show
 ### Cleanup Globo project
 
 ```bash
-export GLOBO_PROJECT="project-ea255408-241f-4c48-8e8"
+export GLOBO_PROJECT="globo-customer"
 export REGION="us-west1"
 export ZONE="us-west1-a"
 
@@ -586,16 +584,17 @@ gcloud compute networks subnets delete lrs-subnet \
 gcloud compute networks delete lrs-vpc \
   --project=$LRS_PROJECT --quiet
 
-# Optionally delete the entire LRS project
+# Optionally delete both projects entirely (removes everything in one go)
+# gcloud projects delete globo-customer --quiet
 # gcloud projects delete lrs-harmonic --quiet
 ```
 
 ### Verify cleanup
 
 ```bash
-gcloud compute instances list --project=project-ea255408-241f-4c48-8e8
+gcloud compute instances list --project=globo-customer
 gcloud compute instances list --project=lrs-harmonic
-gcloud compute networks list --project=project-ea255408-241f-4c48-8e8
+gcloud compute networks list --project=globo-customer
 gcloud compute networks list --project=lrs-harmonic
 ```
 
