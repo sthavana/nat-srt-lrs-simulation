@@ -202,7 +202,7 @@
       </div>
 
       <!-- PSC arrow -->
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;align-self:stretch;">
         <div class="d-arrow">&#10132;</div>
         <div class="d-label" style="color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">PSC</div>
         <div style="font-size:10px;color:#4a5568;text-align:center;">PSC Interface gets IP<br>from customer subnet<br><code style="color:#4ecdc4;font-size:10px;">10.0.1.5</code></div>
@@ -223,7 +223,7 @@
       </div>
 
       <!-- VPC Peering arrow -->
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;align-self:stretch;">
         <div class="d-arrow">&#10132;</div>
         <div class="d-label" style="color:#6c8cff;background:#121630;border:1px solid #1e3a5f;">VPC Peering</div>
         <div style="font-size:10px;color:#4a5568;">Harmonic internal</div>
@@ -238,21 +238,19 @@
     </div>
 
     <!-- Vertical: Direct Connect + Globo Headend below Customer VPC -->
-    <div style="display:flex;flex-direction:column;align-items:flex-start;">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;margin-top:0;">
       <div style="display:flex;flex-direction:column;align-items:center;min-width:170px;">
-        <!-- Vertical connector line from Customer VPC -->
-        <div style="width:2px;height:12px;background:#f9ca24;"></div>
+        <!-- Connector line -->
+        <div style="width:2px;height:16px;background:#f9ca24;"></div>
 
-        <!-- Direct Connect arrow -->
-        <div style="display:flex;flex-direction:column;align-items:center;padding:2px 0;">
-          <div style="font-size:18px;color:#f9ca24;">&#9650;</div>
-          <div class="d-label" style="color:#f9ca24;background:#1f1a0a;border:1px solid #3d2e0a;margin:4px 0;">Direct Connect</div>
-          <div style="font-size:10px;color:#4a5568;">Google Cloud Interconnect</div>
-          <div style="font-size:18px;color:#f9ca24;margin-top:2px;">&#9650;</div>
+        <!-- Direct Connect label (centered between the two boxes) -->
+        <div style="display:flex;flex-direction:column;align-items:center;padding:4px 0;">
+          <div class="d-label" style="color:#f9ca24;background:#1f1a0a;border:1px solid #3d2e0a;">Direct Connect</div>
+          <div style="font-size:10px;color:#4a5568;margin-top:2px;">Google Cloud Interconnect</div>
         </div>
 
-        <!-- Vertical connector line to Headend -->
-        <div style="width:2px;height:12px;background:#f9ca24;"></div>
+        <!-- Connector line -->
+        <div style="width:2px;height:16px;background:#f9ca24;"></div>
 
         <!-- Globo Headend box -->
         <div class="d-box" style="border-color:#f9ca24;border-style:dashed;width:100%;">
