@@ -612,6 +612,22 @@ Protocol:    <span class="value">SRT</span> (over UDP)
     </div>
   </div>
 
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Can the customer bypass PSC by using Direct Connect to push SRT directly to LRS?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <strong style="color:#c8d6e5;">No.</strong> Google Cloud Interconnect (Direct Connect) terminates in the <strong style="color:#c8d6e5;">customer's own GCP VPC</strong> &mdash; it cannot connect directly to Harmonic's LRS VPC. The customer's Direct Connect creates a private on-ramp into <strong style="color:#f9ca24;">their project and their VPC only</strong>.<br><br>
+      Since LRS runs in <strong style="color:#6c8cff;">Harmonic's dedicated VPC</strong> (a separate GCP project), the SRT traffic must still cross a VPC boundary. This is a fundamental GCP isolation model: each organisation's VPC is isolated by default, and cross-project connectivity requires an explicit mechanism.<br><br>
+      There are only two options for this VPC-to-VPC bridge:<br>
+      &bull; <strong style="color:#6c8cff;">VPC Peering</strong> &mdash; bridges the entire customer VPC with the entire LRS VPC. Simple to set up, but both sides gain broad network visibility into each other's resources. CIDRs must not overlap. Difficult to get through enterprise security review.<br>
+      &bull; <strong style="color:#00b894;">PSC (Private Service Connect)</strong> &mdash; the customer creates a Network Attachment that permits only the Harmonic LRS project to connect. Harmonic gets access to a single subnet, not the entire VPC. The customer retains full control.<br><br>
+      <strong style="color:#c8d6e5;">In short:</strong> Direct Connect solves the <em>headend-to-GCP</em> problem. PSC solves the <em>customer-VPC-to-LRS-VPC</em> problem. They address different parts of the path &mdash; you need both.
+    </div>
+  </div>
+
   <!-- Quick Reference -->
   <div class="section-label">Quick Reference &mdash; URLs &amp; Commands</div>
   <table class="ref-table">
