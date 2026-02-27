@@ -359,7 +359,43 @@
 
         <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
           <span class="arrow">&#9654;</span>
-          <span class="toggle-title">gcloud CLI — ILB + Service Attachment</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            <strong style="color:#c8d6e5;">Instance Group</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">Compute Engine &rarr; Instance Groups</strong><br>
+            2. Click <strong style="color:#c8d6e5;">Create instance group &rarr; New unmanaged instance group</strong><br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code> &nbsp;&bull;&nbsp; Zone: select zone<br>
+            4. Under <strong style="color:#c8d6e5;">VM instances</strong>, add the LRS VM<br>
+            5. Click <strong style="color:#c8d6e5;">Create</strong><br>
+            <br>
+            <strong style="color:#c8d6e5;">Internal Load Balancer</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">Network Services &rarr; Load Balancing &rarr; Create load balancer</strong><br>
+            2. Select <strong style="color:#c8d6e5;">Network Load Balancer (TCP/UDP/SSL)</strong><br>
+            3. Select <strong style="color:#c8d6e5;">Passthrough</strong> &rarr; <strong style="color:#c8d6e5;">Internal</strong> &rarr; Click <strong style="color:#c8d6e5;">Continue</strong><br>
+            4. <strong style="color:#c8d6e5;">Backend configuration</strong>: Name <code style="color:#f9ca24;font-size:12px;">pfc01-ilb</code>, Protocol <strong style="color:#c8d6e5;">UDP</strong>, Region: select region<br>
+            5. Add backend &rarr; select instance group <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code><br>
+            6. Health check: select <code style="color:#f9ca24;font-size:12px;">psc-health-check</code><br>
+            7. <strong style="color:#c8d6e5;">Frontend configuration</strong>: Protocol <strong style="color:#c8d6e5;">UDP</strong>, Port <strong style="color:#c8d6e5;">7086</strong><br>
+            8. Click <strong style="color:#c8d6e5;">Create</strong><br>
+            <br>
+            <strong style="color:#c8d6e5;">PSC Service Attachment</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
+            2. Click <strong style="color:#c8d6e5;">Publish service</strong><br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-service-attachment</code><br>
+            4. Load balancer: select <code style="color:#f9ca24;font-size:12px;">pfc01-ilb-forwarding-rule</code><br>
+            5. NAT subnets: select <code style="color:#f9ca24;font-size:12px;">psc-nat-subnet-pfc01</code><br>
+            6. Connection preference: <strong style="color:#c8d6e5;">Accept selected connections</strong><br>
+            7. Consumer accept list: add customer project ID, connection limit <strong style="color:#c8d6e5;">10</strong><br>
+            8. Click <strong style="color:#c8d6e5;">Add service</strong>
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
           <span class="toggle-hint">click to expand</span>
         </div>
         <div class="desc-body">
@@ -411,13 +447,33 @@ gcloud compute service-attachments create <span class="placeholder">pfc01-servic
         <div class="step-desc">
           Harmonic retrieves the <strong>Service Attachment URI</strong> and provides it to the customer. The customer needs this URI to create the PSC Endpoint in their VPC.
         </div>
-        <div class="code-block"><span class="comment"># Retrieve the Service Attachment URI</span>
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
+            2. Click on <strong style="color:#c8d6e5;">pfc01-service-attachment</strong> to open the details page<br>
+            3. Copy the value under <strong style="color:#c8d6e5;">Service attachment</strong> — this is the URI to share with the customer
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div class="code-block"><span class="comment"># Retrieve the Service Attachment URI</span>
 gcloud compute service-attachments describe <span class="placeholder">pfc01-service-attachment</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(selfLink)"</span>
 
 <span class="comment"># Output example:</span>
 <span class="value">https://www.googleapis.com/compute/v1/projects/harmonic-lrs-prod/regions/south-america-east1/serviceAttachments/pfc01-service-attachment</span></div>
+        </div>
       </div>
     </div>
 
@@ -492,13 +548,34 @@ gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-end
         <div class="step-desc">
           The customer provides the <strong>PSC Endpoint IP</strong> assigned in Step 4 to Harmonic. Harmonic uses this to verify end-to-end connectivity from the Harmonic side before the customer configures encoders.
         </div>
-        <div class="code-block"><span class="comment"># Get the assigned PSC Endpoint IP</span>
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
+            2. Find the endpoint <strong style="color:#c8d6e5;">pfc01-psc-endpoint</strong> in the list<br>
+            3. Copy the value in the <strong style="color:#c8d6e5;">IP address</strong> column<br>
+            4. Share this IP with Harmonic for verification
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div class="code-block"><span class="comment"># Get the assigned PSC Endpoint IP</span>
 gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(IPAddress)"</span>
 
 <span class="comment"># Example output — provide this to Harmonic:</span>
 <span class="value">10.100.0.2</span></div>
+        </div>
       </div>
     </div>
 
@@ -513,7 +590,38 @@ gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-end
         <div class="step-desc">
           The customer creates firewall rules allowing <strong>UDP 7086</strong> traffic to and from the PSC subnet. These rules are <strong>one-time</strong> — they cover all current and future streams on the same subnet, with no changes needed when new streams are added.
         </div>
-        <div class="code-block"><span class="comment"># Allow SRT egress to PSC endpoint subnet</span>
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            <strong style="color:#c8d6e5;">Egress rule (SRT traffic to LRS)</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Firewall &rarr; Create Firewall Rule</strong><br>
+            2. Name: <code style="color:#f9ca24;font-size:12px;">srt-allow-egress</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
+            3. Direction: <strong style="color:#c8d6e5;">Egress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
+            4. Destination IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
+            5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, port <strong style="color:#c8d6e5;">7086</strong><br>
+            6. Click <strong style="color:#c8d6e5;">Create</strong><br>
+            <br>
+            <strong style="color:#c8d6e5;">Ingress rule (SRT return traffic — NAKs, ACKs)</strong><br>
+            1. Click <strong style="color:#c8d6e5;">Create Firewall Rule</strong> again<br>
+            2. Name: <code style="color:#f9ca24;font-size:12px;">srt-allow-ingress</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
+            3. Direction: <strong style="color:#c8d6e5;">Ingress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
+            4. Source IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
+            5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, port <strong style="color:#c8d6e5;">7086</strong><br>
+            6. Click <strong style="color:#c8d6e5;">Create</strong>
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div class="code-block"><span class="comment"># Allow SRT egress to PSC endpoint subnet</span>
 gcloud compute firewall-rules create <span class="placeholder">srt-allow-egress</span> \
     <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
     <span class="flag">--direction=</span><span class="value">EGRESS</span> \
@@ -526,6 +634,8 @@ gcloud compute firewall-rules create <span class="placeholder">srt-allow-ingress
     <span class="flag">--direction=</span><span class="value">INGRESS</span> \
     <span class="flag">--allow=</span><span class="value">udp:7086</span> \
     <span class="flag">--source-ranges=</span><span class="placeholder">10.100.0.0/24</span></div>
+        </div>
+
         <div class="info-box info-warn">
           <strong>SRT is bidirectional UDP:</strong> SRT sources are Callers (initiating the connection), but SRT uses UDP which requires both directions to be open. The LRS Listener sends NAKs, ACKs, and retransmitted packets back to the Caller. Both egress and ingress rules are required.
         </div>
@@ -576,6 +686,27 @@ Protocol:    <span class="value">SRT</span> (over UDP)
         <div class="step-desc">
           Both parties verify the SRT connection is established and streams are flowing.
         </div>
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            <strong style="color:#c8d6e5;">Customer — Check PSC Endpoint status</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
+            2. Find each <strong style="color:#c8d6e5;">pfc0X-psc-endpoint</strong> in the list<br>
+            3. Verify the <strong style="color:#c8d6e5;">Status</strong> column shows <strong style="color:#00b894;">Accepted</strong><br>
+            4. Note the <strong style="color:#c8d6e5;">IP address</strong> assigned to each endpoint<br>
+            <br>
+            <strong style="color:#c8d6e5;">Harmonic — Check LRS Cloud Source</strong><br>
+            1. Open the <strong style="color:#c8d6e5;">LRS Cloud Source dashboard</strong> in Syndicate<br>
+            2. Verify each Cloud Source shows stream as <strong style="color:#00b894;">Active</strong><br>
+            3. Check SRT statistics show <strong style="color:#00b894;">0% packet loss</strong><br>
+            4. Confirm source IP in LRS shows a <code style="color:#f9ca24;font-size:12px;">10.x.x.x</code> address (PSC NAT subnet — confirms private path)
+          </div>
+        </div>
+
         <ul class="checklist">
           <li>PSC Endpoint status shows <strong>ACCEPTED</strong></li>
           <li>SRT encoder shows <strong>Connected</strong> status</li>
