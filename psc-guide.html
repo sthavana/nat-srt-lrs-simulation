@@ -431,7 +431,7 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             <strong style="color:#c8d6e5;">Instance Group</strong><br>
             1. Go to <strong style="color:#c8d6e5;">Compute Engine &rarr; Instance Groups</strong><br>
             2. Click <strong style="color:#c8d6e5;">Create instance group &rarr; New unmanaged instance group</strong><br>
-            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code> &nbsp;&bull;&nbsp; Zone: select zone<br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">poc-srt-01-lrs-ig</code> &nbsp;&bull;&nbsp; Zone: select zone<br>
             4. Under <strong style="color:#c8d6e5;">VM instances</strong>, add the LRS VM<br>
             5. Click <strong style="color:#c8d6e5;">Create</strong><br>
             <br>
@@ -439,8 +439,8 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             1. Go to <strong style="color:#c8d6e5;">Network Services &rarr; Load Balancing &rarr; Create load balancer</strong><br>
             2. Select <strong style="color:#c8d6e5;">Network Load Balancer (TCP/UDP/SSL)</strong><br>
             3. Select <strong style="color:#c8d6e5;">Passthrough</strong> &rarr; <strong style="color:#c8d6e5;">Internal</strong> &rarr; Click <strong style="color:#c8d6e5;">Continue</strong><br>
-            4. <strong style="color:#c8d6e5;">Backend configuration</strong>: Name <code style="color:#f9ca24;font-size:12px;">pfc01-ilb</code>, Protocol <strong style="color:#c8d6e5;">UDP</strong>, Region: select region<br>
-            5. Add backend &rarr; select instance group <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code><br>
+            4. <strong style="color:#c8d6e5;">Backend configuration</strong>: Name <code style="color:#f9ca24;font-size:12px;">poc-srt-01-ilb</code>, Protocol <strong style="color:#c8d6e5;">UDP</strong>, Region: select region<br>
+            5. Add backend &rarr; select instance group <code style="color:#f9ca24;font-size:12px;">poc-srt-01-lrs-ig</code><br>
             6. Health check: select <code style="color:#f9ca24;font-size:12px;">psc-health-check</code><br>
             7. <strong style="color:#c8d6e5;">Frontend configuration</strong>: Protocol <strong style="color:#c8d6e5;">UDP</strong>, Port <strong style="color:#c8d6e5;">7086</strong><br>
             8. Click <strong style="color:#c8d6e5;">Create</strong><br>
@@ -448,9 +448,9 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             <strong style="color:#c8d6e5;">PSC Service Attachment</strong><br>
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
             2. Click <strong style="color:#c8d6e5;">Publish service</strong><br>
-            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-service-attachment</code><br>
-            4. Load balancer: select <code style="color:#f9ca24;font-size:12px;">pfc01-ilb-forwarding-rule</code><br>
-            5. NAT subnets: select <code style="color:#f9ca24;font-size:12px;">psc-nat-subnet-pfc01</code><br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">poc-srt-01-sa</code><br>
+            4. Load balancer: select <code style="color:#f9ca24;font-size:12px;">poc-srt-01-ilb</code><br>
+            5. NAT subnets: select <code style="color:#f9ca24;font-size:12px;">harmonic-psc-nat-subnet</code><br>
             6. Connection preference: <strong style="color:#c8d6e5;">Accept selected connections</strong><br>
             7. Consumer accept list: add customer project ID, connection limit <strong style="color:#c8d6e5;">10</strong><br>
             8. Click <strong style="color:#c8d6e5;">Add service</strong>
@@ -464,34 +464,34 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># 1. Create instance group for the LRS VM</span>
-gcloud compute instance-groups unmanaged create <span class="placeholder">pfc01-vm-group</span> \
+gcloud compute instance-groups unmanaged create <span class="placeholder">poc-srt-01-lrs-ig</span> \
     <span class="flag">--zone=</span><span class="placeholder">ZONE</span>
-gcloud compute instance-groups unmanaged add-instances <span class="placeholder">pfc01-vm-group</span> \
+gcloud compute instance-groups unmanaged add-instances <span class="placeholder">poc-srt-01-lrs-ig</span> \
     <span class="flag">--zone=</span><span class="placeholder">ZONE</span> \
     <span class="flag">--instances=</span><span class="placeholder">LRS_VM_NAME</span>
 
 <span class="comment"># 2. Create backend service</span>
-gcloud compute backend-services create <span class="placeholder">pfc01-ilb</span> \
+gcloud compute backend-services create <span class="placeholder">poc-srt-01-ilb</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--protocol=</span><span class="value">UDP</span> \
     <span class="flag">--health-checks=</span><span class="value">psc-health-check</span> \
     <span class="flag">--load-balancing-scheme=</span><span class="value">INTERNAL</span>
 
 <span class="comment"># 3. Create ILB forwarding rule (gets a private IP from LRS subnet)</span>
-gcloud compute forwarding-rules create <span class="placeholder">pfc01-ilb-forwarding-rule</span> \
+gcloud compute forwarding-rules create <span class="placeholder">poc-srt-01-ilb</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--load-balancing-scheme=</span><span class="value">INTERNAL</span> \
-    <span class="flag">--backend-service=</span><span class="placeholder">pfc01-ilb</span> \
+    <span class="flag">--backend-service=</span><span class="placeholder">poc-srt-01-ilb</span> \
     <span class="flag">--ports=</span><span class="value">7086,7090</span> \
     <span class="flag">--ip-protocol=</span><span class="value">UDP</span>
 
 <span class="comment"># 4. Create PSC Service Attachment</span>
-gcloud compute service-attachments create <span class="placeholder">pfc01-service-attachment</span> \
+gcloud compute service-attachments create <span class="placeholder">poc-srt-01-sa</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
-    <span class="flag">--producer-forwarding-rule=</span><span class="placeholder">pfc01-ilb-forwarding-rule</span> \
+    <span class="flag">--producer-forwarding-rule=</span><span class="placeholder">poc-srt-01-ilb</span> \
     <span class="flag">--connection-preference=</span><span class="value">ACCEPT_MANUAL</span> \
     <span class="flag">--consumer-accept-list=</span><span class="placeholder">CUSTOMER_PROJECT_ID</span>=1 \
-    <span class="flag">--nat-subnets=</span><span class="placeholder">psc-nat-subnet-pfc01</span></div>
+    <span class="flag">--nat-subnets=</span><span class="placeholder">harmonic-psc-nat-subnet</span></div>
         </div>
 
         <div class="info-box info-note" style="margin-top:12px;">
@@ -519,7 +519,7 @@ gcloud compute service-attachments create <span class="placeholder">pfc01-servic
         <div class="desc-body">
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
-            2. Click on <strong style="color:#c8d6e5;">pfc01-service-attachment</strong> to open the details page<br>
+            2. Click on <strong style="color:#c8d6e5;">poc-srt-01-sa</strong> to open the details page<br>
             3. Copy the value under <strong style="color:#c8d6e5;">Service attachment</strong> — this is the URI to share with the customer
           </div>
         </div>
@@ -531,12 +531,12 @@ gcloud compute service-attachments create <span class="placeholder">pfc01-servic
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Retrieve the Service Attachment URI</span>
-gcloud compute service-attachments describe <span class="placeholder">pfc01-service-attachment</span> \
+gcloud compute service-attachments describe <span class="placeholder">poc-srt-01-sa</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(selfLink)"</span>
 
 <span class="comment"># Output example:</span>
-<span class="value">https://www.googleapis.com/compute/v1/projects/harmonic-lrs-prod/regions/southamerica-east1/serviceAttachments/pfc01-service-attachment</span></div>
+<span class="value">https://www.googleapis.com/compute/v1/projects/e-globocomuni-vos360-prod/regions/southamerica-east1/serviceAttachments/poc-srt-01-sa</span></div>
         </div>
       </div>
     </div>
@@ -577,20 +577,20 @@ gcloud compute service-attachments describe <span class="placeholder">pfc01-serv
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Reserve a private IP from customer subnet</span>
-gcloud compute addresses create <span class="placeholder">pfc01-endpoint-ip</span> \
+gcloud compute addresses create <span class="placeholder">poc-srt-01-endpoint-ip</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--subnet=</span><span class="placeholder">CUSTOMER_SUBNET</span> \
     <span class="flag">--purpose=</span><span class="value">GCE_ENDPOINT</span>
 
 <span class="comment"># Create the PSC Endpoint forwarding rule</span>
-gcloud compute forwarding-rules create <span class="placeholder">pfc01-psc-endpoint</span> \
+gcloud compute forwarding-rules create <span class="placeholder">poc-srt-01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
-    <span class="flag">--address=</span><span class="placeholder">pfc01-endpoint-ip</span> \
+    <span class="flag">--address=</span><span class="placeholder">poc-srt-01-endpoint-ip</span> \
     <span class="flag">--target-service-attachment=</span><span class="placeholder">SERVICE_ATTACHMENT_URI</span>
 
 <span class="comment"># Verify connection is ACCEPTED and get the assigned IP</span>
-gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-endpoint</span> \
+gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"yaml(IPAddress,pscConnectionStatus)"</span></div>
         </div>
@@ -620,7 +620,7 @@ gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-end
         <div class="desc-body">
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
-            2. Find the endpoint <strong style="color:#c8d6e5;">pfc01-psc-endpoint</strong> in the list<br>
+            2. Find the endpoint <strong style="color:#c8d6e5;">poc-srt-01-psc-endpoint</strong> in the list<br>
             3. Copy the value in the <strong style="color:#c8d6e5;">IP address</strong> column<br>
             4. Share this IP with Harmonic for verification
           </div>
@@ -633,7 +633,7 @@ gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-end
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Get the assigned PSC Endpoint IP</span>
-gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-endpoint</span> \
+gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(IPAddress)"</span>
 
@@ -700,7 +700,7 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             <strong style="color:#c8d6e5;">Customer — Check PSC Endpoint status</strong><br>
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
-            2. Find each <strong style="color:#c8d6e5;">pfc0X-psc-endpoint</strong> in the list<br>
+            2. Find each <strong style="color:#c8d6e5;">poc-srt-01-psc-endpoint</strong> in the list<br>
             3. Verify the <strong style="color:#c8d6e5;">Status</strong> column shows <strong style="color:#00b894;">Accepted</strong><br>
             4. Note the <strong style="color:#c8d6e5;">IP address</strong> assigned to each endpoint<br>
             <br>
