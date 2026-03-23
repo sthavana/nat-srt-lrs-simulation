@@ -213,7 +213,9 @@
       <div class="d-box" style="border-color:#6c8cff;min-width:200px;">
         <div class="d-title" style="color:#6c8cff;">Harmonic LRS VPC</div>
         <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
-          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">southamerica-east1</code> <span style="color:#00b894;">&#10003; same</span>
+          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">southamerica-east1</code> <span style="color:#00b894;">&#10003; same</span><br>
+          <span style="color:#6b7b8d;">LRS Subnet:</span> <code style="color:#6c8cff;font-size:10px;">172.16.0.0/18</code><br>
+          <span style="color:#6b7b8d;">PSC NAT Subnet:</span> <code style="color:#6c8cff;font-size:10px;">10.200.0.0/24</code>
         </div>
         <div style="margin-top:8px;padding:6px 10px;background:#121630;border:1px solid #1e3a5f;border-radius:6px;text-align:left;">
           <div style="font-size:10px;font-weight:700;color:#6c8cff;margin-bottom:4px;">Per stream (Harmonic manages)</div>
@@ -221,7 +223,7 @@
           <div style="font-size:10px;color:#4a5568;">&#8595;</div>
           <div style="font-size:10px;color:#6b7b8d;">ILB (UDP 7086 / 7090)</div>
           <div style="font-size:10px;color:#4a5568;">&#8595;</div>
-          <div style="font-size:10px;color:#6b7b8d;">LRS VM &mdash; SRT Listener :7086</div>
+          <div style="font-size:10px;color:#6b7b8d;">LRS VM &mdash; SRT Listener :7086/:7090</div>
           <div style="font-size:10px;color:#4a5568;margin-top:2px;">iptables DNAT + SNAT</div>
         </div>
       </div>
