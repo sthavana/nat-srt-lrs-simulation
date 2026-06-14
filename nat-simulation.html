@@ -105,9 +105,136 @@
   .scenario-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #2a3040; background: #1e2738; color: #8899aa; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .scenario-btn:hover { border-color: #4ecdc4; color: #c8d6e5; }
   .scenario-btn.active { background: #4ecdc4; color: #0a0e17; border-color: #4ecdc4; }
+
+  /* SNAT/DNAT — packet header trace table */
+  .trace-wrapper { background: #111620; border-radius: 12px; border: 1px solid #1e2738; padding: 16px 20px; margin-bottom: 20px; }
+  .trace-title { font-size: 13px; font-weight: 700; color: #a29bfe; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .trace-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .trace-table thead th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7b8d; padding: 8px 10px; border-bottom: 1px solid #1e2738; text-align: left; }
+  .trace-table tbody td { padding: 10px 10px; border-bottom: 1px solid #1e273860; vertical-align: middle; }
+  .trace-table tbody tr { transition: opacity 0.4s; }
+  .trace-table tbody tr.trace-blocked { opacity: 0.28; }
+  .trace-table .trace-step { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  .trace-table .trace-header { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; }
+  .trace-table .ip-hi { color: #f9ca24; font-weight: 700; }
+  .trace-table .ip-ok { color: #4ecdc4; }
+  .trace-table .ip-ret { color: #00b894; }
+  .trace-table .trace-result { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; display: inline-block; white-space: nowrap; }
+  .trace-table .result-pass { background: #00b89422; color: #00b894; border: 1px solid #00b89440; }
+  .trace-table .result-drop { background: #ff6b6b22; color: #ff6b6b; border: 1px solid #ff6b6b40; }
+  .trace-table .result-xform { background: #f9ca2422; color: #f9ca24; border: 1px solid #f9ca2440; }
+  .trace-table .result-conn { background: #4ecdc422; color: #4ecdc4; border: 1px solid #4ecdc440; }
+  .trace-table td[data-dnat-tip] { cursor: help; }
+
+  /* ---- Scenario Guide ---- */
+  #dnat-guide {
+    border-radius: 8px; border: 1px solid #1e2738; border-left: 3px solid #4ecdc4;
+    background: #0d1117; margin-bottom: 16px; font-size: 13px; overflow: hidden;
+  }
+  #dnat-guide .dg-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; cursor: pointer; user-select: none;
+  }
+  #dnat-guide .dg-header:hover { background: #ffffff08; }
+  #dnat-guide .dg-title { font-weight: 700; font-size: 13px; color: #e8eaf6; }
+  #dnat-guide .dg-chevron { color: #6b7b8d; font-size: 11px; transition: transform 0.2s; }
+  #dnat-guide.dg-open .dg-chevron { transform: rotate(180deg); }
+  #dnat-guide .dg-body { padding: 0 16px 12px; display: none; }
+  #dnat-guide.dg-open .dg-body { display: block; }
+  #dnat-guide .dg-step { display: flex; gap: 8px; margin-bottom: 6px; line-height: 1.5; color: #8899aa; }
+  #dnat-guide .dg-num { color: #4ecdc4; font-weight: 700; min-width: 18px; flex-shrink: 0; }
+  #dnat-guide .dg-step b { color: #e8eaf6; }
+  #dnat-guide .dg-bad { color: #ff6b6b; font-weight: 600; }
+  #dnat-guide .dg-warn { color: #f9ca24; font-weight: 600; }
+  #dnat-guide .dg-ok { color: #00b894; font-weight: 600; }
+
+  /* ---- Floating tooltip ---- */
+  #dnat-tooltip {
+    position: fixed; display: none; max-width: 310px;
+    background: #1a1d2e; border: 1px solid #2a3a55; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; line-height: 1.6; color: #b0bec5;
+    pointer-events: none; z-index: 9999; box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  }
+  #dnat-tooltip b { color: #e8eaf6; }
+  #dnat-tooltip .tip-bad { color: #ff6b6b; }
+  #dnat-tooltip .tip-ok  { color: #00b894; }
+  #dnat-tooltip .tip-warn { color: #f9ca24; }
+  #dnat-tooltip code { font-family: 'SF Mono','Fira Code',monospace; color: #4ecdc4; background: #0d1117; padding: 1px 5px; border-radius: 3px; font-size: 11px; word-break: break-all; }
 </style>
 </head>
 <body>
+<!-- ===== Shared SRT site navigation (injected) ===== -->
+<style id="srtnav-style">
+  body { padding-left: 240px; }
+  .srtnav { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: #0c111b; border-right: 1px solid #1e2738; overflow-y: auto; z-index: 1000; padding: 16px 10px 40px; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .srtnav::-webkit-scrollbar { width: 8px; }
+  .srtnav::-webkit-scrollbar-thumb { background: #1e2738; border-radius: 4px; }
+  .srtnav-brand { padding: 4px 12px 14px; margin-bottom: 8px; border-bottom: 1px solid #1e2738; }
+  .srtnav-brand a { color: #4ecdc4; font-weight: 700; font-size: 14px; text-decoration: none; }
+  .srtnav-brand a span { color: #6b7b8d; font-weight: 400; }
+  .srtnav-link { display: block; font-size: 13px; color: #8899aa; text-decoration: none; padding: 7px 12px; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 1px; }
+  .srtnav-link:hover { background: #131a26; color: #c8d6e5; }
+  .srtnav-link.active { background: #0d1f1e; color: #4ecdc4; border-left-color: #4ecdc4; font-weight: 600; }
+  .srtnav-group { margin-top: 6px; }
+  .srtnav-ghead { display: flex; align-items: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7b8d; padding: 8px 12px; cursor: pointer; user-select: none; border-radius: 6px; }
+  .srtnav-ghead:hover { background: #131a26; }
+  .srtnav-arrow { margin-left: auto; font-size: 8px; color: #4a5568; transition: transform 0.2s; }
+  .srtnav-group.open .srtnav-arrow { transform: rotate(180deg); }
+  .srtnav-items { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
+  .srtnav-group.open .srtnav-items { max-height: 400px; }
+  .srtnav-items .srtnav-link { padding-left: 22px; font-size: 12.5px; }
+  .srtnav-toggle { display: none; position: fixed; top: 11px; right: 14px; z-index: 1002; background: #111620; border: 1px solid #1e2738; color: #4ecdc4; font-size: 16px; width: 40px; height: 34px; border-radius: 6px; cursor: pointer; }
+  @media (max-width: 860px) {
+    body { padding-left: 0; }
+    .srtnav { transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 4px 0 24px rgba(0,0,0,0.55); }
+    .srtnav.open { transform: translateX(0); }
+    .srtnav-toggle { display: block; }
+  }
+</style>
+<button class="srtnav-toggle" id="srtnavToggle" aria-label="Toggle navigation">&#9776;</button>
+<nav class="srtnav" id="srtnav">
+  <div class="srtnav-brand"><a href="index.html">SRT &amp; LRS <span>Unpacked</span></a></div>
+  <a class="srtnav-link" href="index.html">Overview</a>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Simulations <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="tcp-simulation.html">TCP Fundamentals</a>
+      <a class="srtnav-link" href="srt-simulation.html">SRT Protocol</a>
+      <a class="srtnav-link" href="nat-simulation.html">NAT / SRT / LRS</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Deployment Guides <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="psc-guide.html">LRS via PSC &mdash; iptables</a>
+      <a class="srtnav-link" href="psc-loopback-guide.html">LRS via PSC &mdash; Loopback</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Operations &amp; Troubleshooting <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="azure-log-analytics-kql.html">KQL Deep Dive</a>
+      <a class="srtnav-link" href="lrs-troubleshooting-guide.html">Analysing LRS Stream Issues</a>
+    </div>
+  </div>
+</nav>
+<script>
+(function(){
+  var path = (location.pathname.split('/').pop() || 'index.html');
+  if (path === '') path = 'index.html';
+  document.querySelectorAll('.srtnav-link').forEach(function(a){
+    var href = (a.getAttribute('href') || '').split('#')[0];
+    if (href === path) { a.classList.add('active'); var g = a.closest('.srtnav-group'); if (g) g.classList.add('open'); }
+  });
+  document.querySelectorAll('.srtnav-ghead').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+  var t = document.getElementById('srtnavToggle'), n = document.getElementById('srtnav');
+  if (t && n) t.addEventListener('click', function(){ n.classList.toggle('open'); });
+})();
+</script>
+<!-- ===== /Shared SRT site navigation ===== -->
+
 
 <div class="header">
   <h1><span>NAT / SRT / LRS</span> — Interactive Simulation</h1>
@@ -118,6 +245,7 @@
   <div class="tab" data-tab="types">NAT Types</div>
   <div class="tab" data-tab="srt">SRT Through NAT</div>
   <div class="tab" data-tab="lrs">VOS 360 / LRS</div>
+  <div class="tab" data-tab="dnat">SNAT / DNAT</div>
 </div>
 
 <!-- ==================== TAB 1: NAT PACKET FLOW ==================== -->
@@ -317,22 +445,22 @@
 <div class="sim-container" id="sim-lrs">
   <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
     <span class="arrow">&#9654;</span>
-    <span class="toggle-title">VOS 360 / LRS (Live Routing Service)</span>
+    <span class="toggle-title">VOS 360 / LRS — PSC (Private Service Connect) Loopback &amp; iptables</span>
     <span class="toggle-hint">click to expand</span>
   </div>
   <div class="desc-body">
     <div class="sim-desc">
-      See how SRT streams flow through the Harmonic VOS 360 pipeline. LRS VMs in Azure act as SRT relay nodes with two roles: <em>Cloud Source</em> (receives from encoders) and <em>Cloud Edge</em> (forwards to Ingest). By default, LRS is a <strong>Listener</strong> with a URL:port for external sources to connect to. However, LRS CS/CE can also be configured as <strong>Caller</strong> when needed.
+      How SRT encoders connect to Harmonic <strong>LRS Cloud Source VMs on GCP</strong> via <strong>PSC (Private Service Connect)</strong>. Two validated approaches: <em>PF01 (iptables)</em> uses DNAT+SNAT rules so the listener stays on 0.0.0.0:7086 with no application change. <em>PF02 (loopback)</em> adds the ILB IP to the <code>lo</code> interface and binds the SRT listener directly to that IP — no iptables needed. Both require <strong>--can-ip-forward=True</strong> on the LRS VM so GCP allows response packets with <code>src=ILB IP</code>.
     </div>
   </div>
   <div class="controls">
     <div class="control-group" style="min-width: 560px;">
       <label>Scenario</label>
       <div class="scenario-btns" id="lrs-scenario-btns">
-        <button class="scenario-btn active" data-sc="1">Express Route</button>
-        <button class="scenario-btn" data-sc="2">Public Internet + NAT</button>
-        <button class="scenario-btn" data-sc="3">Wrong mode (fails)</button>
-        <button class="scenario-btn" data-sc="4">Failover</button>
+        <button class="scenario-btn active" data-sc="1">PSC &#8212; iptables (PF01)</button>
+        <button class="scenario-btn" data-sc="2">PSC &#8212; Loopback (PF02)</button>
+        <button class="scenario-btn" data-sc="3">No --can-ip-forward</button>
+        <button class="scenario-btn" data-sc="4">Public Internet (old)</button>
       </div>
     </div>
     <div class="control-group">
@@ -346,22 +474,133 @@
   </div>
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> SRT Handshake</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Connected / Video flowing</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> Connected / Stream flowing</div>
     <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Blocked / Failed</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> NAT mapping created</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#6c8cff"></div> Express Route (private)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Caller/Listener role</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> PSC NAT</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6c8cff"></div> ILB (passthrough NLB)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> Loopback / iptables</div>
   </div>
   <div class="canvas-wrapper">
-    <canvas id="canvas-lrs" height="600"></canvas>
+    <canvas id="canvas-lrs" height="560"></canvas>
   </div>
   <div class="stats">
     <div class="stat-card"><div class="stat-label">Pipeline Status</div><div class="stat-value" id="lrs-s-status" style="color:#6b7b8d;">Idle</div></div>
-    <div class="stat-card"><div class="stat-label">Active SRT Hops</div><div class="stat-value stat-good" id="lrs-s-hops">0 / 3</div></div>
+    <div class="stat-card"><div class="stat-label">Active SRT Hops</div><div class="stat-value stat-good" id="lrs-s-hops">0 / 1</div></div>
     <div class="stat-card"><div class="stat-label">Packets Sent</div><div class="stat-value stat-good" id="lrs-s-sent">0</div></div>
     <div class="stat-card"><div class="stat-label">Packets Blocked</div><div class="stat-value stat-bad" id="lrs-s-blocked">0</div></div>
   </div>
 </div>
+
+<!-- ==================== TAB 5: SNAT / DNAT ==================== -->
+<div class="sim-container" id="sim-dnat">
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">SNAT / DNAT — PSC + ILB Return Path</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="sim-desc">
+      The root cause is the <strong>Internal Passthrough NLB (ILB)</strong>. Unlike a proxy load balancer, it does not terminate the connection — it forwards packets straight to the backend VM with <strong>dst = ILB frontend IP (172.18.64.86)</strong>, not the VM's own IP (172.18.64.93). The Linux kernel on the LRS VM gets a packet for an address it doesn't own and silently drops it.<br><br>
+      <strong>DNAT (PREROUTING):</strong> fires before the kernel routing decision. Rewrites <code>dst 172.18.64.86 → 172.18.64.93</code> so the kernel delivers the packet locally to the SRT listener.<br><br>
+      <strong>SNAT (POSTROUTING):</strong> fires as the response leaves the VM. Rewrites <code>src 172.18.64.93 → 172.18.64.86</code> so PSC NAT recognises the return traffic — it was tracking a session keyed to 172.18.64.86, so a response from 172.18.64.93 is unknown to it and gets silently dropped.<br><br>
+      Also notice the <strong>asymmetric return path</strong>: the response from the LRS VM goes directly to the PSC NAT subnet — the ILB is <em>not</em> in the return path.
+    </div>
+  </div>
+  <div class="controls">
+    <div class="control-group" style="min-width:520px;">
+      <label>Scenario</label>
+      <div class="scenario-btns">
+        <button class="scenario-btn" data-dnat-sc="0">Broken — no iptables</button>
+        <button class="scenario-btn" data-dnat-sc="1">DNAT only (half-fixed)</button>
+        <button class="scenario-btn active" data-dnat-sc="2">DNAT + SNAT (working)</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="dnat-pause">Pause</button>
+        <button class="btn btn-secondary" id="dnat-send">Send Packet</button>
+        <button class="btn btn-secondary" id="dnat-reset">Reset</button>
+      </div>
+    </div>
+  </div>
+  <div id="dnat-guide"></div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#4ecdc4"></div> Consumer side</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a29bfe"></div> After PSC SNAT</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6c8cff"></div> ILB (dst preserved!)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f9ca24"></div> After DNAT / SNAT</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00b894"></div> SRT response</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b6b"></div> Dropped</div>
+  </div>
+  <div class="canvas-wrapper">
+    <canvas id="canvas-dnat" height="420"></canvas>
+  </div>
+  <div class="trace-wrapper">
+    <div class="trace-title">Packet Header at Each Hop</div>
+    <table class="trace-table" id="dnat-trace-table">
+      <thead>
+        <tr>
+          <th style="width:24%">Hop</th>
+          <th style="width:29%">src</th>
+          <th style="width:29%">dst</th>
+          <th style="width:18%">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id="dtr-1">
+          <td><span class="trace-step" style="color:#4ecdc4">&#9312; Consumer &rarr; PSC</span></td>
+          <td class="trace-header"><span class="ip-ok">10.100.0.5</span>:41234</td>
+          <td class="trace-header"><span class="ip-ok">10.100.0.6</span>:7086</td>
+          <td data-dnat-tip="&lt;b&gt;Consumer → PSC Endpoint&lt;/b&gt;&lt;br&gt;Consumer VM sends SRT to &lt;code&gt;10.100.0.6:7086&lt;/code&gt; — the PSC Endpoint IP in the consumer VPC. This virtual address is managed by GCP PSC; it has no meaning inside the producer VPC."><span class="trace-result result-pass">&rarr; sends</span></td>
+        </tr>
+        <tr id="dtr-2">
+          <td><span class="trace-step" style="color:#a29bfe">&#9313; PSC NAT</span></td>
+          <td class="trace-header"><span class="ip-hi">10.1.0.2</span>:1024</td>
+          <td class="trace-header"><span class="ip-hi">172.18.64.86</span>:7086</td>
+          <td data-dnat-tip="&lt;b&gt;PSC NAT rewrites both src and dst&lt;/b&gt;&lt;br&gt;&lt;b&gt;src:&lt;/b&gt; 10.100.0.5 → &lt;code&gt;10.1.0.2&lt;/code&gt; &lt;span class='tip-warn'&gt;(SNAT)&lt;/span&gt; — enables return-path session tracking.&lt;br&gt;&lt;b&gt;dst:&lt;/b&gt; 10.100.0.6 → &lt;code&gt;172.18.64.86&lt;/code&gt; &lt;span class='tip-warn'&gt;(DNAT)&lt;/span&gt; — translates consumer endpoint IP to the ILB frontend IP in the producer VPC. This translation &lt;i&gt;is&lt;/i&gt; PSC."><span class="trace-result result-xform">src + dst rewritten</span></td>
+        </tr>
+        <tr id="dtr-3">
+          <td><span class="trace-step" style="color:#6c8cff">&#9314; ILB &rarr; LRS VM</span></td>
+          <td class="trace-header"><span class="ip-ok">10.1.0.2</span>:1024</td>
+          <td class="trace-header" style="color:#6c8cff;font-weight:700">172.18.64.86:7086</td>
+          <td data-dnat-tip="&lt;b&gt;ILB — Internal Passthrough NLB&lt;/b&gt;&lt;br&gt;Unlike a proxy load balancer, this NLB does &lt;b&gt;not&lt;/b&gt; terminate the connection. It forwards the packet unchanged — dst stays &lt;code&gt;172.18.64.86&lt;/code&gt; (the ILB IP), &lt;span class='tip-bad'&gt;not the VM's own IP 172.18.64.93&lt;/span&gt;. The LRS VM kernel receives a packet for an address it doesn't own. This is the root cause."><span class="trace-result" style="background:#6c8cff22;color:#6c8cff;border:1px solid #6c8cff40">dst preserved!</span></td>
+        </tr>
+        <tr id="dtr-4">
+          <td><span class="trace-step" style="color:#f9ca24">&#9315; LRS VM DNAT</span></td>
+          <td class="trace-header"><span class="ip-ok">10.1.0.2</span>:1024</td>
+          <td class="trace-header"><span class="ip-hi">172.18.64.93</span>:7086</td>
+          <td id="dtr-4-result"><span class="trace-result result-xform">dst rewritten</span></td>
+        </tr>
+        <tr id="dtr-5">
+          <td><span class="trace-step" style="color:#00b894">&#9316; SRT Listener &larr;</span></td>
+          <td class="trace-header"><span class="ip-ret">172.18.64.93</span>:7086</td>
+          <td class="trace-header"><span class="ip-ok">10.1.0.2</span>:1024</td>
+          <td data-dnat-tip="&lt;b&gt;SRT Listener responds&lt;/b&gt;&lt;br&gt;The listener accepted the SRT handshake (after DNAT fixed the dst). It sends a response back to the source it sees in the packet: &lt;code&gt;10.1.0.2:1024&lt;/code&gt; (PSC NAT subnet IP). The listener has no awareness of iptables — it uses raw packet headers."><span class="trace-result result-pass">responds</span></td>
+        </tr>
+        <tr id="dtr-6">
+          <td><span class="trace-step" style="color:#f9ca24">&#9317; LRS VM SNAT</span></td>
+          <td class="trace-header"><span class="ip-hi">172.18.64.86</span>:7086</td>
+          <td class="trace-header"><span class="ip-ok">10.1.0.2</span>:1024</td>
+          <td id="dtr-6-result"><span class="trace-result result-xform">src rewritten</span></td>
+        </tr>
+        <tr id="dtr-7">
+          <td><span class="trace-step" style="color:#4ecdc4">&#9318; PSC NAT &rarr; Consumer</span></td>
+          <td class="trace-header"><span class="ip-ok">10.100.0.6</span>:7086</td>
+          <td class="trace-header"><span class="ip-ok">10.100.0.5</span>:41234</td>
+          <td id="dtr-7-result"><span class="trace-result result-conn">&#10003; Connected</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="stats">
+    <div class="stat-card"><div class="stat-label">Path Status</div><div class="stat-value" id="dnat-s-status" style="color:#00b894;">WORKING</div></div>
+    <div class="stat-card"><div class="stat-label">Connections Accepted</div><div class="stat-value stat-good" id="dnat-s-accepted">0</div></div>
+    <div class="stat-card"><div class="stat-label">Packets Dropped</div><div class="stat-value stat-bad" id="dnat-s-dropped">0</div></div>
+    <div class="stat-card"><div class="stat-label">Drop Reason</div><div class="stat-value" id="dnat-s-reason" style="font-size:13px;color:#6b7b8d;">—</div></div>
+  </div>
+</div>
+<div id="dnat-tooltip"></div>
 
 <script>
 // ===================== UTILITY =====================
@@ -1505,7 +1744,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
   var W, H;
   function resize() {
     W = canvas.parentElement.clientWidth;
-    H = 600;
+    H = 560;
     canvas.width = W * devicePixelRatio;
     canvas.height = H * devicePixelRatio;
     canvas.style.height = H + 'px';
@@ -1522,93 +1761,84 @@ document.querySelectorAll('.tab').forEach(function(tab) {
   var stats = { sent: 0, blocked: 0 };
   var pipelineStatus = 'Idle';
   var activeHops = 0;
-  var hopStatus = [false, false, false]; // hop1 XOS→CloudSrc, hop2 CloudSrc→CloudEdge, hop3 CloudEdge→Ingest
-  var failedPath = null; // for failover scenario
+  var hopStatus = [false]; // hop0: encoder→lrs_vm (full PSC path)
 
-  // Pipeline node positions (fraction of W)
+  var MAIN_Y = 100;
+  var RET_Y  = 165;
+  var LOG_Y  = 240;
+
   var NODES = {
-    xos:       { fx: 0.06, y: 80, label: 'XOS Encoder', sub: '(Venue)', w: 100, h: 50 },
-    nat:       { fx: 0.18, y: 80, label: 'Venue NAT', sub: '', w: 70, h: 40 },
-    exproute:  { fx: 0.27, y: 80, label: 'Express Route', sub: '(Colorado)', w: 100, h: 50 },
-    cloudsrc:  { fx: 0.44, y: 80, label: 'Cloud Source', sub: 'LRS (US West 2)', w: 100, h: 50 },
-    cloudedge: { fx: 0.61, y: 80, label: 'Cloud Edge', sub: 'LRS', w: 90, h: 50 },
-    ingest:    { fx: 0.77, y: 80, label: 'Ingest VM', sub: '(Azure)', w: 90, h: 50 },
-    streamproc:{ fx: 0.92, y: 80, label: 'Stream Proc', sub: '(Azure)', w: 86, h: 50 },
-    // Failover alternate path
-    exproute2: { fx: 0.27, y: 170, label: 'Express Route', sub: '(Ashburn)', w: 100, h: 50 },
-    cloudsrc2: { fx: 0.44, y: 170, label: 'Cloud Source', sub: 'LRS (US East 2)', w: 100, h: 50 },
+    encoder: { fx: 0.04, label: 'SRT Encoder', sub: 'Customer VPC',  w: 100, h: 52 },
+    psc_ep:  { fx: 0.20, label: 'PSC Endpoint', sub: '10.100.0.9',   w: 100, h: 52 },
+    psc_nat: { fx: 0.37, label: 'PSC NAT',       sub: '11.2.0.2',     w: 84,  h: 52 },
+    ilb:     { fx: 0.53, label: 'ILB',            sub: '172.18.64.99', w: 80,  h: 52 },
+    lrs_vm:  { fx: 0.68, label: 'LRS VM',         sub: '172.18.64.4',  w: 84,  h: 52 },
+    vos360:  { fx: 0.84, label: 'VOS 360',         sub: 'Transcoder',   w: 84,  h: 52 },
   };
 
   var paused = false;
-  var PHASE_INTERVAL = 5000;
-  var ANIM_SPEED = 4500;
-  var MAIN_Y = 80; // y for main pipeline row
-  var LOG_Y = 240; // event log top
+  var PHASE_INTERVAL = 2800;
+  var ANIM_SPEED = 1800;
 
-  // Scenario definitions
   var scenarios = {
     1: {
-      title: 'Via Express Route (Normal Flow)',
-      subtitle: 'Private peering \u2014 no NAT, no public internet. XOS \u2192 Cloud Source \u2192 Cloud Edge \u2192 Ingest.',
-      showNat: false, showFailover: false,
+      title: 'PSC \u2014 iptables approach (PF01) \u2014 Working',
+      subtitle: 'DNAT+SNAT on LRS VM. Listener stays on 0.0.0.0:7086 \u2014 no app change needed.',
+      showLoopback: false, showIptables: true,
       phases: [
-        { desc: 'LRS Cloud Source is LISTENER by default \u2014 it exposes a URL:port for external sources to connect to', event: true, info: true },
-        { desc: 'XOS Encoder is CALLER \u2014 it connects TO the LRS Listener URL (upstream sources initiate connections)', from: 'xos', to: 'cloudsrc', pass: true, hop: 0 },
-        { desc: 'Hop 1 connected. Express Route is private peering \u2014 no NAT, no public internet', event: true, hopConnect: 0 },
-        { desc: 'LRS CS/CE can also act as CALLER (recently added) \u2014 here Cloud Source calls Cloud Edge to forward the stream', from: 'cloudsrc', to: 'cloudedge', pass: true, hop: 1 },
-        { desc: 'LRS Cloud Edge is LISTENER by default \u2014 same pattern: it exposes a URL:port for upstream LRS to connect', event: true, hopConnect: 1 },
-        { desc: 'LRS Cloud Edge acts as CALLER to push the stream to Ingest VM (Listener)', from: 'cloudedge', to: 'ingest', pass: true, hop: 2 },
-        { desc: 'Ingest VM is LISTENER \u2014 stable endpoint; Listeners accept multiple Callers via SRT Stream ID', event: true, hopConnect: 2 },
-        { desc: 'Key: LRS defaults to Listener (URL:port), but CS/CE can also be configured as Caller when needed', event: true, info: true },
-        { desc: 'Pipeline connected \u2014 video flows: XOS \u2192 Cloud Source \u2192 Cloud Edge \u2192 Ingest \u2192 Stream Processor', connected: true },
+        { desc: 'LRS VM has iptables DNAT+SNAT rules. Listener on 0.0.0.0:7086. --can-ip-forward=True.', event: true, info: true },
+        { desc: 'Encoder (CALLER) sends SRT to PSC Endpoint 10.100.0.9:7086', from: 'encoder', to: 'psc_ep', pass: true, label: 'SRT' },
+        { desc: 'PSC NAT rewrites: src=11.2.0.2 (PSC NAT), dst=172.18.64.99 (ILB IP)', event: true, natMapping: true },
+        { desc: 'Packet crosses PSC NAT \u2192 ILB \u2192 LRS VM, dst=172.18.64.99 preserved (passthrough NLB)', from: 'psc_nat', to: 'lrs_vm', pass: true, label: 'SRT' },
+        { desc: 'iptables DNAT: dst 172.18.64.99\u2192172.18.64.4. Kernel delivers to SRT listener.', event: true, info: true },
+        { desc: 'iptables SNAT on response: src 172.18.64.4\u2192172.18.64.99. PSC NAT matches session.', event: true, info: true },
+        { desc: 'Return path: LRS VM \u2192 PSC NAT (ILB bypassed!)', from: 'lrs_vm', to: 'psc_nat', pass: true, label: 'ACK', returnPath: true },
+        { desc: 'PSC NAT matches session. ACK reaches encoder.', from: 'psc_nat', to: 'encoder', pass: true, label: 'ACK', returnPath: true, hop: 0 },
+        { desc: 'PF01 validated \u2014 0% packet loss. Source IP in Syndicate: 11.1.0.2 (PSC NAT subnet).', connected: true },
       ]
     },
     2: {
-      title: 'Via Public Internet (Venue Behind NAT)',
-      subtitle: 'XOS encoder is at a venue behind NAT \u2014 it MUST be the Caller so its outbound creates a NAT mapping.',
-      showNat: true, showFailover: false,
+      title: 'PSC \u2014 Loopback approach (PF02) \u2014 Working',
+      subtitle: 'ILB IP on loopback (lo). Listener bound to ILB IP. No iptables needed.',
+      showLoopback: true, showIptables: false,
       phases: [
-        { desc: 'LRS Cloud Source is LISTENER (default) \u2014 it has a public Azure IP and exposes a URL:port', event: true, info: true },
-        { desc: 'XOS Encoder is CALLER \u2014 it is behind venue NAT, so it MUST send first (outbound creates NAT mapping)', from: 'xos', to: 'cloudsrc', pass: true, hop: 0, throughNat: true },
-        { desc: 'NAT mapping created! Outbound rewrites private src IP to venue\'s public IP', event: true, natMapping: true },
-        { desc: 'LRS Cloud Source (Listener) receives handshake, sends response back through the NAT mapping', from: 'cloudsrc', to: 'xos', pass: true, hop: 0, returnPath: true },
-        { desc: 'Hop 1 connected \u2014 NAT mapping keeps the path open; SRT keep-alives prevent expiration', event: true, hopConnect: 0 },
-        { desc: 'LRS Cloud Source now acts as CALLER to forward stream to Cloud Edge (both in Azure VNet, no NAT)', from: 'cloudsrc', to: 'cloudedge', pass: true, hop: 1 },
-        { desc: 'LRS Cloud Edge is LISTENER (default URL:port) \u2014 receives the forwarded stream', event: true, hopConnect: 1 },
-        { desc: 'LRS Cloud Edge acts as CALLER \u2192 Ingest VM is LISTENER \u2014 inside Azure, no NAT', from: 'cloudedge', to: 'ingest', pass: true, hop: 2 },
-        { desc: 'Hop 3 connected \u2014 full pipeline established!', event: true, hopConnect: 2 },
-        { desc: 'Key: Encoder behind NAT MUST be Caller \u2014 only outbound creates the mapping. LRS defaults to Listener.', connected: true },
+        { desc: '172.18.64.99/32 added to lo interface. SRT listener bound to 172.18.64.99:7086. --can-ip-forward=True.', event: true, info: true },
+        { desc: 'Encoder (CALLER) sends SRT to PSC Endpoint 10.100.0.9:7086', from: 'encoder', to: 'psc_ep', pass: true, label: 'SRT' },
+        { desc: 'PSC NAT: src=11.2.0.2, dst=172.18.64.99 \u2192 ILB \u2192 LRS VM', from: 'psc_nat', to: 'lrs_vm', pass: true, label: 'SRT' },
+        { desc: 'Kernel accepts dst=172.18.64.99 via loopback. Socket bound to that IP \u2014 delivery confirmed.', event: true, info: true },
+        { desc: 'Response src=172.18.64.99 naturally (socket binding). No SNAT rule needed.', event: true, info: true },
+        { desc: 'Return: src=172.18.64.99 \u2192 PSC NAT matches \u2192 ACK to encoder', from: 'lrs_vm', to: 'encoder', pass: true, label: 'ACK', returnPath: true, hop: 0 },
+        { desc: 'tcpdump confirmed: 172.18.64.99.7086 > 11.2.0.2.1024 (ILB IP as source)', event: true, info: true },
+        { desc: 'PF02 validated \u2014 stream connected, data flowing. No iptables rules needed.', connected: true },
       ]
     },
     3: {
-      title: 'Wrong Mode \u2014 LRS as Caller to NAT\'d Encoder (Fails)',
-      subtitle: 'LRS can be Caller (recently added), but NOT when the target is behind NAT without port forwarding.',
-      showNat: true, showFailover: false,
+      title: 'PSC \u2014 No --can-ip-forward (Fails)',
+      subtitle: 'Without --can-ip-forward, GCP blocks packets with src\u2260NIC IP. PSC NAT cannot match session.',
+      showLoopback: false, showIptables: false,
       phases: [
-        { desc: 'LRS CS/CE can be configured as Caller (recently added feature). But here the target XOS is behind venue NAT...', event: true, fail: true },
-        { desc: 'MISCONFIGURED: LRS Cloud Source set as Caller, XOS set as Listener (behind venue NAT)', event: true, fail: true },
-        { desc: 'Problem: XOS is Listener but never sent outbound \u2014 venue NAT has NO mapping for inbound traffic', event: true, fail: true },
-        { desc: 'LRS Cloud Source (Caller) sends SRT handshake toward XOS encoder\'s venue IP...', from: 'cloudsrc', to: 'xos', pass: false, blocked: 'nat', hop: 0 },
-        { desc: 'Venue NAT receives inbound packet but has NO MAPPING \u2014 packet DROPPED!', event: true, fail: true },
-        { desc: 'LRS retries... venue NAT still blocks \u2014 no outbound from XOS means no mapping ever existed', from: 'cloudsrc', to: 'xos', pass: false, blocked: 'nat', hop: 0 },
-        { desc: 'Connection FAILED \u2014 LRS Caller mode only works when the target is directly reachable (public IP or same VNet)', event: true, fail: true },
-        { desc: 'Fix: Keep LRS as Listener (default) and set XOS as Caller \u2014 its outbound creates the NAT mapping', event: true, info: true },
-        { desc: 'Pipeline FAILED \u2014 device behind NAT must always be the Caller, or use port forwarding', failed: true },
+        { desc: 'Loopback IP on lo. Listener bound to 172.18.64.99:7086. BUT --can-ip-forward=False.', event: true, fail: true },
+        { desc: 'Encoder sends SRT to PSC Endpoint 10.100.0.9:7086', from: 'encoder', to: 'psc_ep', pass: true, label: 'SRT' },
+        { desc: 'PSC NAT \u2192 ILB \u2192 LRS VM. Packet arrives correctly.', from: 'psc_nat', to: 'lrs_vm', pass: true, label: 'SRT' },
+        { desc: 'LRS VM responds. GCP source check: src=172.18.64.4 (VM NIC IP, not ILB IP).', event: true, fail: true },
+        { desc: 'Response BLOCKED \u2014 src IP not allowed without --can-ip-forward', from: 'lrs_vm', to: 'psc_nat', pass: false, label: 'ACK', blocked: true },
+        { desc: 'tcpdump showed: 172.18.64.4.7086 > 11.2.0.2 (wrong src). PSC NAT drops \u2014 no session match.', event: true, fail: true },
+        { desc: 'Encoder never receives ACK. SRT handshake times out.', event: true, fail: true },
+        { desc: 'Fix: stop VM from Cloud Console (NOT Syndicate), set canIpForward=true via REST API, restart.', failed: true },
       ]
     },
     4: {
-      title: 'Failover \u2014 Primary Path Dies, Reroutes',
-      subtitle: 'Redundant LRS VMs across regions. When primary path fails, traffic reroutes through secondary.',
-      showNat: false, showFailover: true,
+      title: 'Public Internet \u2014 Before PSC',
+      subtitle: 'SRT via corporate firewall and public internet. Exposed to internet, higher latency.',
+      showLoopback: false, showIptables: false,
       phases: [
-        { desc: 'LRS Cloud Source US West 2 is LISTENER (default URL:port). XOS (Caller) connects via Express Route Colorado', from: 'xos', to: 'cloudsrc', pass: true, hop: 0 },
-        { desc: 'Hop 1 connected \u2014 video flowing via primary path', event: true, hopConnect: 0 },
-        { desc: 'Full pipeline connected: Cloud Source \u2192 Cloud Edge \u2192 Ingest (all inside Azure)', event: true, hopConnect: 1, hopConnect2: 2, fast: true },
-        { desc: '\u26a0 Express Route Colorado FAILS \u2014 path down! SRT session lost', event: true, fail: true, pathFail: 'primary' },
-        { desc: 'All hops on primary path disconnected \u2014 need to reroute', event: true, fail: true, hopDisconnect: true },
-        { desc: 'LRS Cloud Source US East 2 is also LISTENER \u2014 XOS (Caller) reconnects via Express Route Ashburn', from: 'xos', to: 'cloudsrc2', pass: true, hop: 0, failover: true },
-        { desc: 'Failover hop connected \u2014 redundant LRS Listeners across regions enable seamless rerouting', event: true, hopConnect: 0, failover: true },
-        { desc: 'Pipeline restored! Multiple LRS Listener VMs across regions = built-in failover', connected: true, failover: true },
+        { desc: 'Old setup: LRS VM has public IP. No PSC. Corporate firewall must open UDP 7086.', event: true, fail: true },
+        { desc: 'Encoder sends SRT through corporate NAT + public internet', from: 'encoder', to: 'psc_ep', pass: true, label: 'SRT' },
+        { desc: 'Traffic traverses public internet \u2014 unpredictable latency, packet loss risk, firewall holes required', event: true, fail: true },
+        { desc: 'LRS VM (public IP) receives stream. No PSC NAT.', from: 'psc_nat', to: 'lrs_vm', pass: true, label: 'SRT' },
+        { desc: 'Problems: public IP exposed, firewall holes per stream, internet NAT port mapping needed', event: true, fail: true },
+        { desc: 'Response via public internet back to encoder', from: 'lrs_vm', to: 'encoder', pass: true, label: 'ACK', returnPath: true, hop: 0 },
+        { desc: 'Connected \u2014 but PSC eliminates: public IP, firewall holes, internet NAT, higher latency.', connected: true },
       ]
     }
   };
@@ -1635,20 +1865,16 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     stats = { sent: 0, blocked: 0 };
     pipelineStatus = 'Idle';
     activeHops = 0;
-    hopStatus = [false, false, false];
-    failedPath = null;
+    hopStatus = [false];
     updateLrsStats();
   }
 
   function playLrs() {
     resetLrs();
     phase = 0;
-    phaseTimer = 0;
+    phaseTimer = PHASE_INTERVAL + 1;
     pipelineStatus = 'Establishing...';
   }
-
-  function nodeX(n) { return NODES[n].fx * W; }
-  function nodeW(n) { return NODES[n].w; }
 
   var prevTime = performance.now();
   function update(now) {
@@ -1665,43 +1891,36 @@ document.querySelectorAll('.tab').forEach(function(tab) {
         if (p.from) {
           var fromN = NODES[p.from], toN = NODES[p.to];
           var fromPx = fromN.fx * W + fromN.w / 2;
-          var toPx = toN.fx * W + toN.w / 2;
-          // For blocked packets heading toward NAT
-          if (!p.pass && p.blocked === 'nat') {
-            toPx = NODES.nat.fx * W + NODES.nat.w / 2;
-          }
-          var pktY = p.failover ? 170 : MAIN_Y;
+          var toPx   = toN.fx   * W + toN.w   / 2;
+          var pktY   = p.returnPath ? RET_Y : MAIN_Y;
+          var tgtY   = p.returnPath ? RET_Y : MAIN_Y;
           animPackets.push({
             startX: fromPx, startY: pktY,
-            targetX: toPx, targetY: p.failover ? 170 : (p.returnPath ? MAIN_Y : MAIN_Y),
-            progress: 0, color: p.pass ? '#4ecdc4' : '#ff6b6b',
-            label: 'SRT', pass: p.pass
+            targetX: toPx,  targetY: tgtY,
+            progress: 0,
+            color: p.pass ? '#4ecdc4' : '#ff6b6b',
+            label: p.label || 'SRT',
+            pass: p.pass,
+            blocked: p.blocked || false
           });
           stats.sent++;
           if (!p.pass) stats.blocked++;
         }
 
-        if (p.hopConnect !== undefined) {
-          hopStatus[p.hopConnect] = true;
+        if (p.hop !== undefined) {
+          hopStatus[p.hop] = true;
           activeHops = hopStatus.filter(function(h) { return h; }).length;
-        }
-        if (p.hopConnect2 !== undefined) {
-          hopStatus[p.hopConnect2] = true;
-          activeHops = hopStatus.filter(function(h) { return h; }).length;
-        }
-        if (p.hopDisconnect) {
-          hopStatus = [false, false, false];
-          activeHops = 0;
-        }
-        if (p.pathFail === 'primary') {
-          failedPath = 'primary';
         }
         if (p.connected) pipelineStatus = 'Connected';
-        if (p.failed) pipelineStatus = 'FAILED';
+        if (p.failed)    pipelineStatus = 'FAILED';
 
         events.push({
           text: p.desc,
-          color: p.fail || p.failed ? '#ff6b6b' : p.connected ? '#00b894' : p.info ? '#6c8cff' : p.natMapping ? '#a29bfe' : '#c8d6e5',
+          color: p.fail || p.failed ? '#ff6b6b'
+               : p.connected        ? '#00b894'
+               : p.info             ? '#6c8cff'
+               : p.natMapping       ? '#a29bfe'
+               : '#c8d6e5',
           time: now
         });
 
@@ -1714,7 +1933,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     for (var i = animPackets.length - 1; i >= 0; i--) {
       var pkt = animPackets[i];
       pkt.progress += dt / ANIM_SPEED;
-      if (!pkt.pass && pkt.progress > 0.7) pkt.progress = Math.min(pkt.progress, 0.73);
+      if (pkt.blocked && pkt.progress > 0.7) pkt.progress = Math.min(pkt.progress, 0.73);
       if (pkt.progress > 3.5) { animPackets.splice(i, 1); }
     }
 
@@ -1728,144 +1947,125 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
 
     var sc = scenarios[currentScenario];
+    var isFailState = (currentScenario === 3 && pipelineStatus === 'FAILED');
 
     // Title
     ctx.fillStyle = '#e8ecf1'; ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText(sc.title, W * 0.5, 24);
+    ctx.fillText(sc.title, W * 0.5, 22);
     ctx.fillStyle = '#6b7b8d'; ctx.font = '12px system-ui';
-    ctx.fillText(sc.subtitle, W * 0.5, 42);
+    ctx.fillText(sc.subtitle, W * 0.5, 40);
 
-    // Azure cloud background
-    var azureX = NODES.cloudsrc.fx * W - 16;
-    var azureW = (NODES.streamproc.fx * W + NODES.streamproc.w) - azureX + 16;
-    ctx.fillStyle = '#0d182808';
-    rr(ctx, azureX, 52, azureW, 88, 10); ctx.fill();
+    // Background regions
+    // Customer VPC: encoder + psc_ep
+    var custX = NODES.encoder.fx * W - 10;
+    var custW = (NODES.psc_ep.fx * W + NODES.psc_ep.w) - custX + 10;
+    ctx.fillStyle = '#f9ca2408';
+    rr(ctx, custX, 58, custW, 70, 8); ctx.fill();
+    ctx.strokeStyle = '#f9ca2430'; ctx.lineWidth = 1;
+    rr(ctx, custX, 58, custW, 70, 8); ctx.stroke();
+    ctx.fillStyle = '#f9ca2470'; ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('Customer VPC', custX + 5, 70);
+
+    // Harmonic LRS VPC: ilb + lrs_vm + vos360
+    var lrsX = NODES.ilb.fx * W - 10;
+    var lrsW = (NODES.vos360.fx * W + NODES.vos360.w) - lrsX + 14;
+    ctx.fillStyle = '#6c8cff08';
+    rr(ctx, lrsX, 58, lrsW, 70, 8); ctx.fill();
     ctx.strokeStyle = '#6c8cff30'; ctx.lineWidth = 1;
-    rr(ctx, azureX, 52, azureW, 88, 10); ctx.stroke();
-    ctx.fillStyle = '#6c8cff60'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
-    ctx.fillText('Azure Cloud', azureX + 8, 65);
+    rr(ctx, lrsX, 58, lrsW, 70, 8); ctx.stroke();
+    ctx.fillStyle = '#6c8cff70'; ctx.font = '9px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText('Harmonic LRS VPC', lrsX + 5, 70);
 
-    // Draw connection lines (main pipeline)
-    var mainNodes = ['xos', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
-    if (sc.showNat) mainNodes = ['xos', 'nat', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
-    else if (!sc.showNat) {
-      // Show express route in between
-      mainNodes = ['xos', 'exproute', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
-    }
-
+    // Connection lines between nodes (forward path at MAIN_Y)
+    var mainNodes = ['encoder', 'psc_ep', 'psc_nat', 'ilb', 'lrs_vm', 'vos360'];
     for (var i = 0; i < mainNodes.length - 1; i++) {
       var n1 = NODES[mainNodes[i]], n2 = NODES[mainNodes[i + 1]];
       var x1 = n1.fx * W + n1.w, y1 = MAIN_Y;
-      var x2 = n2.fx * W, y2 = MAIN_Y;
-      var lineColor = '#2a3040';
-      // Color connected hops green
-      if (mainNodes[i] === 'xos' && hopStatus[0]) lineColor = '#00b89480';
-      if ((mainNodes[i] === 'cloudsrc' || mainNodes[i] === 'exproute') && hopStatus[0]) lineColor = '#00b89480';
-      if (mainNodes[i] === 'cloudedge' && hopStatus[2]) lineColor = '#00b89480';
-      if (failedPath === 'primary' && (mainNodes[i] === 'xos' || mainNodes[i] === 'exproute')) lineColor = '#ff6b6b40';
-
+      var x2 = n2.fx * W,        y2 = MAIN_Y;
+      var lineColor = hopStatus[0] && mainNodes[i] !== 'vos360' ? '#00b89440' : '#2a3040';
+      if (isFailState && mainNodes[i] === 'lrs_vm') lineColor = '#ff6b6b30';
       ctx.strokeStyle = lineColor; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      // Arrowhead
       ctx.fillStyle = lineColor;
       ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 7, y2 - 4); ctx.lineTo(x2 - 7, y2 + 4); ctx.closePath(); ctx.fill();
     }
 
-    // Failed path X
-    if (failedPath === 'primary') {
-      var erN = NODES.exproute;
-      ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('\u2716', erN.fx * W + erN.w / 2, MAIN_Y - 32);
-      ctx.font = 'bold 10px system-ui';
-      ctx.fillText('PATH DOWN', erN.fx * W + erN.w / 2, MAIN_Y - 42);
-    }
+    // "PSC" label on arrow between psc_ep and ilb (midpoint)
+    var pscMx = (NODES.psc_ep.fx * W + NODES.psc_ep.w + NODES.ilb.fx * W) / 2;
+    ctx.fillStyle = '#a29bfe90'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('PSC', pscMx, MAIN_Y - 8);
 
-    // Failover path (secondary)
-    if (sc.showFailover) {
-      var er2 = NODES.exproute2, cs2 = NODES.cloudsrc2;
-      // Line from XOS down to failover row
-      var xosN = NODES.xos;
-      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738';
-      ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.moveTo(xosN.fx * W + xosN.w / 2, MAIN_Y + xosN.h / 2);
-      ctx.lineTo(xosN.fx * W + xosN.w / 2, 170);
-      ctx.lineTo(er2.fx * W, 170);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Line between failover nodes
-      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(er2.fx * W + er2.w, 170); ctx.lineTo(cs2.fx * W, 170); ctx.stroke();
-      ctx.fillStyle = failedPath ? '#4ecdc440' : '#1e2738';
-      ctx.beginPath(); ctx.moveTo(cs2.fx * W, 170); ctx.lineTo(cs2.fx * W - 7, 166); ctx.lineTo(cs2.fx * W - 7, 174); ctx.closePath(); ctx.fill();
-      // Line from failover CloudSrc back up to CloudEdge
-      var ceN = NODES.cloudedge;
-      ctx.strokeStyle = failedPath ? '#4ecdc440' : '#1e2738';
-      ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.moveTo(cs2.fx * W + cs2.w, 170);
-      ctx.lineTo(ceN.fx * W + ceN.w / 2, 170);
-      ctx.lineTo(ceN.fx * W + ceN.w / 2, MAIN_Y + ceN.h / 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // IP transformation labels under arrows
+    // Before psc_nat: dst 10.100.0.9
+    var preNatMx = (NODES.psc_ep.fx * W + NODES.psc_ep.w + NODES.psc_nat.fx * W) / 2;
+    ctx.fillStyle = '#4a5568'; ctx.font = '8px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('dst: 10.100.0.9', preNatMx, MAIN_Y + 32);
+    // After psc_nat: dst 172.18.64.99
+    var postNatMx = (NODES.psc_nat.fx * W + NODES.psc_nat.w + NODES.ilb.fx * W) / 2;
+    ctx.fillText('dst: 172.18.64.99', postNatMx, MAIN_Y + 32);
 
-      // Draw failover nodes
-      drawNodeBox(er2.fx * W, 170 - er2.h / 2, er2.w, er2.h, er2.label, er2.sub, '#1e2738', failedPath ? '#6c8cff' : '#2a3040');
-      drawNodeBox(cs2.fx * W, 170 - cs2.h / 2, cs2.w, cs2.h, cs2.label, cs2.sub, '#1e2738', failedPath ? '#4ecdc4' : '#2a3040');
-    }
+    // Return path line (dashed teal) at RET_Y: lrs_vm → psc_nat → encoder
+    ctx.strokeStyle = '#4ecdc440'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    var retStartX = NODES.lrs_vm.fx * W + NODES.lrs_vm.w / 2;
+    var retMidX   = NODES.psc_nat.fx * W + NODES.psc_nat.w / 2;
+    var retEndX   = NODES.encoder.fx * W + NODES.encoder.w / 2;
+    ctx.beginPath();
+    ctx.moveTo(retStartX, RET_Y);
+    ctx.lineTo(retMidX,   RET_Y);
+    ctx.lineTo(retEndX,   RET_Y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Arrowhead at encoder end
+    ctx.fillStyle = '#4ecdc440';
+    ctx.beginPath(); ctx.moveTo(retEndX, RET_Y); ctx.lineTo(retEndX + 7, RET_Y - 4); ctx.lineTo(retEndX + 7, RET_Y + 4); ctx.closePath(); ctx.fill();
+    // Vertical connectors from nodes to return path
+    ctx.strokeStyle = '#4ecdc420'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(retStartX, MAIN_Y + NODES.lrs_vm.h / 2); ctx.lineTo(retStartX, RET_Y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(retMidX, MAIN_Y + NODES.psc_nat.h / 2); ctx.lineTo(retMidX, RET_Y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(retEndX, MAIN_Y + NODES.encoder.h / 2); ctx.lineTo(retEndX, RET_Y); ctx.stroke();
+    ctx.setLineDash([]);
+    // Return path label
+    ctx.fillStyle = '#4ecdc460'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('Return path (bypasses ILB)', (retStartX + retEndX) / 2, RET_Y - 12);
 
     // Draw main pipeline nodes
-    var nodesToDraw = sc.showNat
-      ? ['xos', 'nat', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc']
-      : ['xos', 'exproute', 'cloudsrc', 'cloudedge', 'ingest', 'streamproc'];
-
-    nodesToDraw.forEach(function(nk) {
+    var mainNodeKeys = ['encoder', 'psc_ep', 'psc_nat', 'ilb', 'lrs_vm', 'vos360'];
+    mainNodeKeys.forEach(function(nk) {
       var n = NODES[nk];
-      var borderColor = '#2a3040';
-      if (nk === 'xos') borderColor = '#4ecdc4';
-      else if (nk === 'nat') borderColor = '#f9ca24';
-      else if (nk === 'exproute') borderColor = (failedPath === 'primary') ? '#ff6b6b' : '#6c8cff';
-      else if (nk === 'cloudsrc' || nk === 'cloudedge') borderColor = '#a29bfe';
-      else if (nk === 'ingest' || nk === 'streamproc') borderColor = '#00b894';
+      var borderColor;
+      if      (nk === 'encoder') borderColor = '#4ecdc4';
+      else if (nk === 'psc_ep')  borderColor = '#f9ca24';
+      else if (nk === 'psc_nat') borderColor = '#a29bfe';
+      else if (nk === 'ilb')     borderColor = '#6c8cff';
+      else if (nk === 'lrs_vm')  borderColor = isFailState ? '#ff6b6b' : '#a29bfe';
+      else if (nk === 'vos360')  borderColor = '#00b894';
+      else                        borderColor = '#2a3040';
       drawNodeBox(n.fx * W, MAIN_Y - n.h / 2, n.w, n.h, n.label, n.sub, '#1e2738', borderColor);
     });
 
-    // Caller/Listener labels below nodes
-    ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
-    var roleY = MAIN_Y + 36;
-    if (sc.showNat) {
-      ctx.fillStyle = '#f9ca24';
-      ctx.fillText('CALLER', NODES.xos.fx * W + NODES.xos.w / 2, roleY);
-      ctx.fillText('(behind NAT)', NODES.xos.fx * W + NODES.xos.w / 2, roleY + 11);
-      ctx.fillStyle = '#a29bfe';
-      ctx.fillText('LISTENER', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY);
-      ctx.fillText('& CALLER \u2192', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY + 11);
-    } else {
-      ctx.fillStyle = '#f9ca24';
-      ctx.fillText('CALLER', NODES.xos.fx * W + NODES.xos.w / 2, roleY);
-      ctx.fillStyle = '#a29bfe';
-      ctx.fillText('LISTENER', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY);
-      ctx.fillText('& CALLER \u2192', NODES.cloudsrc.fx * W + NODES.cloudsrc.w / 2, roleY + 11);
+    // Loopback annotation below lrs_vm (PF02)
+    if (sc.showLoopback) {
+      var lvmX = NODES.lrs_vm.fx * W + NODES.lrs_vm.w / 2;
+      var lvmY = MAIN_Y + NODES.lrs_vm.h / 2 + 18;
+      ctx.fillStyle = '#4ecdc4'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('lo: 172.18.64.99/32', lvmX, lvmY);
     }
-    ctx.fillStyle = '#a29bfe';
-    ctx.fillText('LISTENER', NODES.cloudedge.fx * W + NODES.cloudedge.w / 2, roleY);
-    ctx.fillText('& CALLER \u2192', NODES.cloudedge.fx * W + NODES.cloudedge.w / 2, roleY + 11);
-    ctx.fillStyle = '#00b894';
-    ctx.fillText('LISTENER', NODES.ingest.fx * W + NODES.ingest.w / 2, roleY);
 
-    // Hop status indicators
-    var hopPairs = [
-      [NODES.xos, NODES.cloudsrc],
-      [NODES.cloudsrc, NODES.cloudedge],
-      [NODES.cloudedge, NODES.ingest]
-    ];
-    hopPairs.forEach(function(pair, idx) {
-      if (hopStatus[idx]) {
-        var mx = (pair[0].fx * W + pair[0].w + pair[1].fx * W) / 2;
-        ctx.fillStyle = '#00b894'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
-        ctx.fillText('\u2713', mx, MAIN_Y - 30);
-      }
-    });
+    // iptables annotation below lrs_vm (PF01)
+    if (sc.showIptables) {
+      var lvmX2 = NODES.lrs_vm.fx * W + NODES.lrs_vm.w / 2;
+      var lvmY2 = MAIN_Y + NODES.lrs_vm.h / 2 + 18;
+      ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('DNAT + SNAT', lvmX2, lvmY2);
+    }
+
+    // Hop status indicator: hop[0] = encoder ↔ lrs_vm
+    if (hopStatus[0]) {
+      var pairL = NODES.encoder, pairR = NODES.lrs_vm;
+      var mx = (pairL.fx * W + pairL.w + pairR.fx * W) / 2;
+      ctx.fillStyle = '#00b894'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('\u2713', mx, MAIN_Y - 32);
+    }
 
     // Animated packets
     animPackets.forEach(function(pkt) {
@@ -1878,11 +2078,11 @@ document.querySelectorAll('.tab').forEach(function(tab) {
       rr(ctx, px - 18, py - 12, 36, 24, 5); ctx.fill();
       ctx.fillStyle = '#0a0e17'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
       ctx.fillText(pkt.label, px, py + 4);
-      if (!pkt.pass && pkt.progress > 0.65) {
-        ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 13px system-ui';
+      if (pkt.blocked && pkt.progress > 0.65) {
+        ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 11px system-ui';
         var flashAlpha = Math.abs(Math.sin(now * 0.005));
         ctx.globalAlpha = alpha * flashAlpha;
-        ctx.fillText('BLOCKED', px, py - 20);
+        ctx.fillText('BLOCKED by GCP', px, py - 20);
       }
       ctx.globalAlpha = 1;
     });
@@ -1893,7 +2093,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     ctx.strokeStyle = '#1e2738'; ctx.lineWidth = 1;
     ctx.strokeRect(W * 0.04, LOG_Y, W * 0.92, H - LOG_Y - 8);
     ctx.fillStyle = '#6b7b8d'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
-    ctx.fillText('Pipeline Log:', W * 0.07, LOG_Y + 18);
+    ctx.fillText('PSC Log:', W * 0.07, LOG_Y + 18);
 
     events.forEach(function(ev, idx) {
       var ey = LOG_Y + 38 + idx * 26;
@@ -1907,7 +2107,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
     // Idle instruction
     if (phase === -1 && events.length === 0) {
       ctx.fillStyle = '#4a5568'; ctx.font = 'italic 14px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('Select a scenario and click "Play" to see how SRT streams flow through the VOS 360 pipeline', W * 0.5, LOG_Y + 60);
+      ctx.fillText('Select a scenario and click Play to see how PSC connects SRT encoders to LRS Cloud Source', W * 0.5, LOG_Y + 60);
     }
   }
 
@@ -1927,14 +2127,612 @@ document.querySelectorAll('.tab').forEach(function(tab) {
   function updateLrsStats() {
     var statusEl = document.getElementById('lrs-s-status');
     statusEl.textContent = pipelineStatus;
-    statusEl.style.color = pipelineStatus === 'Connected' ? '#00b894' :
-                            pipelineStatus === 'FAILED' ? '#ff6b6b' :
+    statusEl.style.color = pipelineStatus === 'Connected'      ? '#00b894' :
+                            pipelineStatus === 'FAILED'         ? '#ff6b6b' :
                             pipelineStatus === 'Establishing...' ? '#f9ca24' : '#6b7b8d';
-    document.getElementById('lrs-s-hops').textContent = activeHops + ' / 3';
+    document.getElementById('lrs-s-hops').textContent = activeHops + ' / 1';
     document.getElementById('lrs-s-sent').textContent = stats.sent;
     document.getElementById('lrs-s-blocked').textContent = stats.blocked;
   }
 
+  requestAnimationFrame(update);
+})();
+
+// ===================== TAB 5: SNAT / DNAT (with ILB) =====================
+(function() {
+  var canvas = document.getElementById('canvas-dnat');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W, H;
+
+  // 5 nodes: Consumer | PSC NAT | ILB | LRS VM | SRT Listener
+  var nodeXfs = [0.08, 0.27, 0.50, 0.73, 0.92];
+  var FWD_YF = 0.37;   // forward lane fraction of H
+  var RET_YF = 0.67;   // return lane fraction of H
+
+  var scenario = 2;
+  var paused = false;
+  var packets = [];
+  var stats = { accepted: 0, dropped: 0 };
+  var autoTimer = 0;
+  var lastTime = 0;
+  var FWD_SPEED = 0.18;
+  var XFORM_DUR = 1.4;
+
+  function resize() {
+    W = canvas.parentElement.clientWidth;
+    H = 420;
+    canvas.width = W * devicePixelRatio;
+    canvas.height = H * devicePixelRatio;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  var NODES = [
+    { label: 'Consumer VM',  sub: '10.100.0.5',       note: 'PSC Endpoint\n10.100.0.6:7086',   col: '#4ecdc4' },
+    { label: 'PSC NAT',      sub: 'GCP Infrastructure', note: 'SNAT consumer src\n→ 10.1.0.x', col: '#a29bfe' },
+    { label: 'ILB',          sub: '172.18.64.86:7086', note: 'Internal Passthrough\nNLB',       col: '#6c8cff' },
+    { label: 'LRS VM',       sub: '172.18.64.93',      note: 'iptables rules',                  col: '#f9ca24' },
+    { label: 'SRT Listener', sub: '0.0.0.0:7086',      note: 'GStreamer / libsrt',              col: '#00b894' },
+  ];
+
+  // ---- Packet factory ----
+  // ---- Packet factory ----
+  function mkPkt() {
+    return {
+      phase: 'seg1', t: 0,
+      src: '10.100.0.5', sport: 41234,
+      dst: '10.100.0.6', dport: 7086,
+      col: '#4ecdc4',
+      response: false,
+      dropped: false, dropAt: '', dropReason: '',
+      xt: 0,
+    };
+  }
+
+  function spawnPkt() { packets.push(mkPkt()); autoTimer = 0; }
+
+  // ---- Phase progression ----
+  // Forward:  seg1 → xpsc → seg2 → xilb → seg3 → xlrs_in → seg4 → xlisten
+  // Return:   seg5 → xlrs_out → seg6/seg6_bad → xpsc_drop/xpsc_out → seg7 → done
+  // Return SKIPS the ILB — goes LRS VM (xs[3]) directly to PSC NAT (xs[1])
+  function stepPkt(p, dt) {
+    if ((p.dropped || p.phase === 'done') && p.xt >= 1) return;
+    switch (p.phase) {
+      case 'seg1':   // Consumer → PSC NAT
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xpsc'; p.xt = 0; }
+        break;
+      case 'xpsc': // PSC NAT: SNAT src, dst → ILB IP
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          p.src = '10.1.0.2'; p.sport = 1024;
+          p.dst = '172.18.64.86'; p.dport = 7086;
+          p.col = '#a29bfe';
+          p.phase = 'seg2'; p.t = 0;
+        }
+        break;
+      case 'seg2':   // PSC NAT → ILB
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xilb'; p.xt = 0; }
+        break;
+      case 'xilb':   // ILB: passthrough — dst stays as ILB IP, no rewrite
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          // dst is STILL 172.18.64.86 — this is the whole problem
+          p.col = '#6c8cff';
+          p.phase = 'seg3'; p.t = 0;
+        }
+        break;
+      case 'seg3':   // ILB → LRS VM
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xlrs_in'; p.xt = 0; }
+        break;
+      case 'xlrs_in': // LRS VM kernel: DNAT check
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          if (scenario === 0) {
+            // No DNAT: kernel sees dst=172.18.64.86, not a local IP → DROP
+            p.dropped = true; p.dropAt = 'lrs'; p.dropReason = 'KERNEL DROP\ndst not local';
+            p.col = '#ff6b6b'; stats.dropped++; updateStats();
+          } else {
+            // DNAT rewrites dst to VM's own IP
+            p.dst = '172.18.64.93'; p.col = '#f9ca24';
+            p.phase = 'seg4'; p.t = 0;
+          }
+        }
+        break;
+      case 'seg4':   // LRS VM → SRT Listener (local delivery after DNAT)
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xlisten'; p.xt = 0; }
+        break;
+      case 'xlisten': // SRT Listener accepts, generates response
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR * 0.65) {
+          p.src = '172.18.64.93'; p.sport = 7086;
+          p.dst = '10.1.0.2'; p.dport = 1024;
+          p.response = true; p.col = '#00b894';
+          p.phase = 'seg5'; p.t = 0;
+        }
+        break;
+      case 'seg5':   // Listener → LRS VM (return, going left)
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xlrs_out'; p.xt = 0; }
+        break;
+      case 'xlrs_out': // LRS VM: SNAT check
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          if (scenario === 1) {
+            // No SNAT: response leaves with src=172.18.64.93 → PSC NAT drops
+            p.phase = 'seg6_bad'; p.t = 0;
+          } else {
+            // SNAT rewrites src to ILB IP
+            p.src = '172.18.64.86'; p.col = '#f9ca24';
+            p.phase = 'seg6'; p.t = 0;
+          }
+        }
+        break;
+      // Return goes LRS VM (xs[3]) → PSC NAT (xs[1]) directly — ILB NOT in return path
+      case 'seg6':     // LRS VM → PSC NAT (correct src, bypasses ILB)
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xpsc_out'; p.xt = 0; }
+        break;
+      case 'seg6_bad': // LRS VM → PSC NAT (wrong src, bypasses ILB)
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'xpsc_drop'; p.xt = 0; }
+        break;
+      case 'xpsc_drop': // PSC NAT drops return (src mismatch)
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          p.dropped = true; p.dropAt = 'psc_ret'; p.dropReason = 'PSC NAT DROP\nsrc \u2260 ILB IP';
+          p.col = '#ff6b6b'; stats.dropped++; updateStats();
+        }
+        break;
+      case 'xpsc_out': // PSC NAT: un-SNAT, deliver to consumer
+        p.xt += dt;
+        if (p.xt >= XFORM_DUR) {
+          p.src = '10.100.0.6'; p.sport = 7086;
+          p.dst = '10.100.0.5'; p.dport = 41234;
+          p.col = '#4ecdc4';
+          p.phase = 'seg7'; p.t = 0;
+        }
+        break;
+      case 'seg7':   // PSC NAT → Consumer
+        p.t += FWD_SPEED * dt;
+        if (p.t >= 1) { p.t = 1; p.phase = 'done'; p.xt = 0; stats.accepted++; updateStats(); }
+        break;
+      case 'done':
+        p.xt += dt; break;
+    }
+  }
+
+  function pktPos(p) {
+    var fwdY = H * FWD_YF, retY = H * RET_YF;
+    var xs = nodeXfs.map(function(f) { return W * f; });
+    var ei = easeInOut;
+    // xs[0]=Consumer xs[1]=PSC NAT xs[2]=ILB xs[3]=LRS VM xs[4]=SRT Listener
+    // Return path skips ILB: goes xs[3] → xs[1] directly
+    switch (p.phase) {
+      case 'seg1':      return { x: lerp(xs[0], xs[1], ei(p.t)), y: fwdY };
+      case 'xpsc':      return { x: xs[1], y: fwdY };
+      case 'seg2':      return { x: lerp(xs[1], xs[2], ei(p.t)), y: fwdY };
+      case 'xilb':      return { x: xs[2], y: fwdY };
+      case 'seg3':      return { x: lerp(xs[2], xs[3], ei(p.t)), y: fwdY };
+      case 'xlrs_in':   return { x: xs[3], y: fwdY };
+      case 'seg4':      return { x: lerp(xs[3], xs[4], ei(p.t)), y: fwdY };
+      case 'xlisten':   return { x: xs[4], y: fwdY };
+      case 'seg5':      return { x: lerp(xs[4], xs[3], ei(p.t)), y: retY };
+      case 'xlrs_out':  return { x: xs[3], y: retY };
+      case 'seg6':      return { x: lerp(xs[3], xs[1], ei(p.t)), y: retY };
+      case 'seg6_bad':  return { x: lerp(xs[3], xs[1], ei(p.t)), y: retY };
+      case 'xpsc_drop': return { x: xs[1], y: retY };
+      case 'xpsc_out':  return { x: xs[1], y: retY };
+      case 'seg7':      return { x: lerp(xs[1], xs[0], ei(p.t)), y: retY };
+      case 'done':      return { x: xs[0], y: retY };
+      default:          return { x: xs[0], y: fwdY };
+    }
+  }
+
+  function drawPkt(p) {
+    var pos = pktPos(p);
+    var isRet = p.response;
+    var lblY = isRet ? pos.y + 22 : pos.y - 22;
+    var hdr = p.src + ':' + p.sport + ' \u2192 ' + p.dst + ':' + p.dport;
+
+    if (p.dropped && p.dropAt) {
+      var pulse = 0.65 + 0.35 * Math.sin(Date.now() / 180);
+      ctx.save(); ctx.globalAlpha = pulse;
+      ctx.font = 'bold 22px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fillText('\u2715', pos.x, pos.y);
+      ctx.font = 'bold 10px system-ui';
+      p.dropReason.split('\n').forEach(function(line, i) {
+        ctx.fillText(line, pos.x, pos.y - 28 + i * 13);
+      });
+      ctx.restore();
+      return;
+    }
+    if (p.phase === 'done') {
+      ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#00b894'; ctx.fillText('\u2713', pos.x, pos.y); return;
+    }
+
+    // Dot
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2);
+    ctx.fillStyle = p.col; ctx.fill();
+
+    // Header label pill
+    ctx.font = '10px "SF Mono","Fira Code",monospace';
+    var tw = ctx.measureText(hdr).width;
+    ctx.fillStyle = '#0d111792';
+    rr(ctx, pos.x - tw / 2 - 4, lblY - 8, tw + 8, 16, 3); ctx.fill();
+    ctx.fillStyle = p.col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(hdr, pos.x, lblY);
+  }
+
+  function drawArrowLine(x1, y, x2, col) {
+    ctx.strokeStyle = col || '#1e2738'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2 - 8, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = col || '#1e2738';
+    ctx.beginPath(); ctx.moveTo(x2, y); ctx.lineTo(x2-8, y-4); ctx.lineTo(x2-8, y+4); ctx.closePath(); ctx.fill();
+  }
+
+  function drawNodeBox(node, nx, ny, NW, NH, glowing) {
+    var x = nx - NW / 2, y = ny - NH / 2;
+    ctx.fillStyle = '#111620';
+    rr(ctx, x, y, NW, NH, 8); ctx.fill();
+    if (glowing) {
+      ctx.strokeStyle = node.col; ctx.lineWidth = 2.5;
+      ctx.shadowColor = node.col; ctx.shadowBlur = 12;
+    } else {
+      ctx.strokeStyle = node.col + '50'; ctx.lineWidth = 1.5;
+    }
+    rr(ctx, x, y, NW, NH, 8); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Header bar
+    ctx.fillStyle = node.col + '28';
+    ctx.beginPath();
+    ctx.moveTo(x+8,y); ctx.lineTo(x+NW-8,y); ctx.quadraticCurveTo(x+NW,y,x+NW,y+8);
+    ctx.lineTo(x+NW,y+28); ctx.lineTo(x,y+28); ctx.lineTo(x,y+8);
+    ctx.quadraticCurveTo(x,y,x+8,y); ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = node.col; ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(node.label, nx, y + 15);
+    ctx.fillStyle = '#8899aa'; ctx.font = '9px system-ui';
+    ctx.fillText(node.sub, nx, y + 40);
+    if (node.note) {
+      node.note.split('\n').forEach(function(line, li) {
+        ctx.fillStyle = '#4a5568'; ctx.font = '9px system-ui';
+        ctx.fillText(line, nx, y + 56 + li * 13);
+      });
+    }
+    return { x: x, y: y };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    var fwdY = H * FWD_YF, retY = H * RET_YF;
+    var xs = nodeXfs.map(function(f) { return W * f; });
+    var NW = Math.min(Math.max(W * 0.115, 76), 100);
+    var NH = 250;
+    var NY = H * 0.52;
+
+    // Find packet currently at ILB (xilb phase) for glow
+    var ilbGlow = packets.some(function(p) { return p.phase === 'xilb'; });
+
+    // --- Zone backgrounds ---
+    ctx.fillStyle = '#4ecdc408';
+    rr(ctx, 4, 18, W * 0.19, H - 36, 8); ctx.fill();
+    ctx.strokeStyle = '#4ecdc420'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#f9ca2406';
+    rr(ctx, W * 0.38, 18, W * 0.608, H - 36, 8); ctx.fill();
+    ctx.strokeStyle = '#f9ca2418'; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#4ecdc448'; ctx.fillText('CUSTOMER VPC', W * 0.095, 32);
+    ctx.fillStyle = '#f9ca2448'; ctx.fillText('HARMONIC LRS VPC', W * 0.69, 32);
+
+    // PSC boundary
+    ctx.strokeStyle = '#a29bfe45'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(W * 0.19, 24); ctx.lineTo(W * 0.19, H - 24); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#a29bfe55'; ctx.font = '9px system-ui';
+    ctx.fillText('PSC', W * 0.19, 30);
+
+    // --- Forward lane (Consumer→PSC NAT→ILB→LRS VM→Listener) ---
+    drawArrowLine(xs[0], fwdY, xs[4], '#1e2738');
+    ctx.fillStyle = '#2a3040'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText('INBOUND \u25b6', W - 6, fwdY - 10);
+
+    // --- Return lane (Listener→LRS VM → PSC NAT→Consumer, skips ILB) ---
+    // Show full dashed line from LRS VM back to Consumer, passing under ILB
+    drawArrowLine(xs[3], retY, xs[0], '#1e2738');
+    ctx.fillStyle = '#2a3040'; ctx.textAlign = 'right';
+    ctx.fillText('RETURN \u25c4 (bypasses ILB)', W - 6, retY - 10);
+
+    // "bypasses" annotation at ILB column on return lane
+    ctx.fillStyle = '#6c8cff40'; ctx.font = '8px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('\u21ca skip', xs[2], retY + 14);
+
+    // --- Draw nodes ---
+    NODES.forEach(function(node, i) {
+      var nx = xs[i], ny = NY;
+      var glowing = (i === 2 && ilbGlow);
+      var box = drawNodeBox(node, nx, ny, NW, NH, glowing);
+      var x = box.x, y = box.y;
+
+      // ILB special content — "Passthrough" and the key warning
+      if (i === 2) {
+        var yb = y + 86;
+        ctx.fillStyle = '#6c8cff18';
+        rr(ctx, x+5, yb, NW-10, 56, 4); ctx.fill();
+        ctx.strokeStyle = '#6c8cff40'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#6c8cff'; ctx.font = 'bold 9px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('Passthrough NLB', nx, yb + 12);
+        ctx.fillStyle = '#f9ca24'; ctx.font = 'bold 9px system-ui';
+        ctx.fillText('dst: PRESERVED', nx, yb + 27);
+        ctx.fillStyle = '#6b7b8d'; ctx.font = '8px system-ui';
+        ctx.fillText('172.18.64.86 \u2192 VM', nx, yb + 40);
+        ctx.fillText('unchanged \u26a0', nx, yb + 52);
+      }
+
+      // LRS VM: DNAT + SNAT sub-boxes
+      if (i === 3) {
+        var dnatOn = scenario >= 1, snatOn = scenario >= 2;
+        var yOff = y + 86;
+        ctx.fillStyle = dnatOn ? '#4ecdc418' : '#ff6b6b18';
+        rr(ctx, x+5, yOff, NW-10, 36, 4); ctx.fill();
+        ctx.strokeStyle = dnatOn ? '#4ecdc440' : '#ff6b6b40'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = dnatOn ? '#4ecdc4' : '#ff6b6b';
+        ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('DNAT PREROUTING', nx, yOff + 11);
+        ctx.font = '8px system-ui'; ctx.fillStyle = dnatOn ? '#6b7b8d' : '#ff6b6b90';
+        ctx.fillText(dnatOn ? 'dst\u219293' : '\u2715 off', nx, yOff + 24);
+
+        var yOff2 = yOff + 44;
+        ctx.fillStyle = snatOn ? '#00b89418' : '#ff6b6b18';
+        rr(ctx, x+5, yOff2, NW-10, 36, 4); ctx.fill();
+        ctx.strokeStyle = snatOn ? '#00b89440' : '#ff6b6b40'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = snatOn ? '#00b894' : '#ff6b6b';
+        ctx.font = 'bold 9px system-ui'; ctx.textBaseline = 'middle';
+        ctx.fillText('SNAT POSTROUTING', nx, yOff2 + 11);
+        ctx.font = '8px system-ui'; ctx.fillStyle = snatOn ? '#6b7b8d' : '#ff6b6b90';
+        ctx.fillText(snatOn ? 'src\u219286' : '\u2715 off', nx, yOff2 + 24);
+      }
+    });
+
+    // --- Packets (drawn on top) ---
+    packets.forEach(drawPkt);
+  }
+
+  function update(now) {
+    var dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    if (!paused) {
+      autoTimer += dt;
+      var active = packets.filter(function(p) { return p.phase !== 'done' && !p.dropped; }).length;
+      if (autoTimer > 5.0 && active < 2) { spawnPkt(); }
+      packets.forEach(function(p) { stepPkt(p, dt); });
+      if (packets.length > 10) {
+        packets = packets.filter(function(p, i) {
+          return i >= packets.length - 8 || (p.phase !== 'done' && !p.dropped);
+        });
+      }
+    }
+    draw();
+    requestAnimationFrame(update);
+  }
+
+  function updateStats() {
+    var sc = [
+      { status: 'BROKEN',  col: '#ff6b6b', reason: 'kernel drops dst=ILB IP' },
+      { status: 'PARTIAL', col: '#f9ca24', reason: 'PSC NAT drops return' },
+      { status: 'WORKING', col: '#00b894', reason: '\u2014' },
+    ][scenario];
+    var el;
+    el = document.getElementById('dnat-s-status');
+    if (el) { el.textContent = sc.status; el.style.color = sc.col; }
+    el = document.getElementById('dnat-s-reason');
+    if (el) { el.textContent = sc.reason; el.style.color = sc.reason === '\u2014' ? '#6b7b8d' : '#ff6b6b'; }
+    el = document.getElementById('dnat-s-accepted'); if (el) el.textContent = stats.accepted;
+    el = document.getElementById('dnat-s-dropped');  if (el) el.textContent = stats.dropped;
+
+    // Trace table: rows 4-7 blocked if scenario 0 (no DNAT)
+    // Row 4 (LRS DNAT result)
+    var r4r = document.getElementById('dtr-4-result');
+    if (r4r) r4r.innerHTML = scenario === 0
+      ? '<span class="trace-result result-drop">\u2715 kernel drop</span>'
+      : '<span class="trace-result result-xform">dst rewritten</span>';
+    ['dtr-4','dtr-5','dtr-6','dtr-7'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle('trace-blocked', scenario === 0);
+    });
+    // Row 6 (LRS SNAT result): blocked/wrong if scenario < 2
+    var r6r = document.getElementById('dtr-6-result');
+    if (r6r) r6r.innerHTML = scenario < 2
+      ? '<span class="trace-result result-drop">\u2715 PSC drop</span>'
+      : '<span class="trace-result result-xform">src rewritten</span>';
+    ['dtr-6','dtr-7'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle('trace-blocked', scenario < 2);
+    });
+    // Row 7 (Connected)
+    var r7r = document.getElementById('dtr-7-result');
+    if (r7r) r7r.innerHTML = scenario < 2
+      ? '<span class="trace-result result-drop">\u2715 no response</span>'
+      : '<span class="trace-result result-conn">\u2713 Connected</span>';
+  }
+
+  // Scenario buttons
+  document.querySelectorAll('[data-dnat-sc]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      scenario = parseInt(btn.dataset.dnatSc);
+      packets = []; stats = { accepted: 0, dropped: 0 };
+      autoTimer = 2.8;
+      document.querySelectorAll('[data-dnat-sc]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      updateStats();
+    });
+  });
+
+  var pauseBtn = document.getElementById('dnat-pause');
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', function() {
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Play' : 'Pause';
+      if (!paused) lastTime = performance.now();
+    });
+  }
+  var sendBtn = document.getElementById('dnat-send');
+  if (sendBtn) { sendBtn.addEventListener('click', spawnPkt); }
+
+  var resetBtn = document.getElementById('dnat-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      packets = []; stats = { accepted: 0, dropped: 0 };
+      autoTimer = 2.8;
+      paused = false;
+      var pb = document.getElementById('dnat-pause');
+      if (pb) pb.textContent = 'Pause';
+      lastTime = performance.now();
+      updateStats();
+    });
+  }
+
+  // ---- Scenario guide ----
+  var GUIDES = [
+    {
+      title: 'Scenario 1 — Broken: no iptables rules on LRS VM',
+      col: '#ff6b6b',
+      steps: [
+        { n: '1', h: 'Consumer sends SRT to the <b>PSC Endpoint</b> (10.100.0.6:7086) in its VPC.' },
+        { n: '2', h: 'PSC NAT rewrites src + dst. Packet enters producer VPC addressed to <b>ILB IP 172.18.64.86</b>.' },
+        { n: '3', h: 'ILB forwards unchanged — <b>dst stays 172.18.64.86</b>. The LRS VM receives a packet for an IP not assigned to it.' },
+        { n: '4', h: '<span class="dg-bad">Kernel drop.</span> Linux silently discards packets for unknown destination IPs. SRT session never starts.' },
+      ]
+    },
+    {
+      title: 'Scenario 2 — Half-fixed: DNAT only',
+      col: '#f9ca24',
+      steps: [
+        { n: '1', h: 'Packet arrives at LRS VM with dst 172.18.64.86 (ILB IP).' },
+        { n: '2', h: '<span class="dg-ok">DNAT fires</span> in iptables PREROUTING. dst rewritten → 172.18.64.93 (VM\'s own IP). Kernel accepts, SRT listener receives the handshake.' },
+        { n: '3', h: 'SRT listener responds. Return packet leaves LRS VM with <span class="dg-warn">src 172.18.64.93</span> (VM\'s real IP) — no SNAT rule exists.' },
+        { n: '4', h: '<span class="dg-bad">PSC NAT drops the response.</span> It tracked the session under src 172.18.64.86 (ILB IP). Wrong source — session mismatch.' },
+      ]
+    },
+    {
+      title: 'Scenario 3 — Working: DNAT + SNAT',
+      col: '#00b894',
+      steps: [
+        { n: '1', h: '<span class="dg-ok">DNAT</span> fixes the inbound path: dst 172.18.64.86 → 172.18.64.93. Kernel delivers to SRT listener.' },
+        { n: '2', h: 'SRT listener responds. iptables POSTROUTING <span class="dg-ok">SNAT fires</span>: src rewritten 172.18.64.93 → <b>172.18.64.86</b> (ILB IP).' },
+        { n: '3', h: '<span class="dg-ok">PSC NAT accepts.</span> Sees expected src 172.18.64.86 — session matches. Response forwarded to consumer.' },
+        { n: '4', h: '<span class="dg-ok">SRT handshake complete.</span> Bidirectional flow established. PSC return path is symmetric.' },
+      ]
+    },
+  ];
+
+  function updateGuide() {
+    var g = GUIDES[scenario];
+    var el = document.getElementById('dnat-guide');
+    if (!el) return;
+    var isOpen = el.classList.contains('dg-open');
+    var stepsHtml = '';
+    g.steps.forEach(function(s) {
+      stepsHtml += '<div class="dg-step"><span class="dg-num">' + s.n + '.</span><span>' + s.h + '</span></div>';
+    });
+    el.innerHTML =
+      '<div class="dg-header">' +
+        '<span class="dg-title">' + g.title + '</span>' +
+        '<span class="dg-chevron">&#9660;</span>' +
+      '</div>' +
+      '<div class="dg-body">' + stepsHtml + '</div>';
+    el.style.borderLeftColor = g.col;
+    if (isOpen) el.classList.add('dg-open');
+    el.querySelector('.dg-header').addEventListener('click', function() {
+      el.classList.toggle('dg-open');
+    });
+  }
+
+  // ---- Tooltips ----
+  var TIPS_DYNAMIC = {
+    'dtr-4-result': [
+      '<b>LRS VM — kernel drop</b><br>No iptables rule. Packet arrives for <code>172.18.64.86</code> — not assigned to any NIC on this VM. <span class="tip-bad">Linux kernel drops it silently.</span> SRT never receives the handshake.',
+      '<b>LRS VM — DNAT applied</b><br><code>iptables -t nat -A PREROUTING -d 172.18.64.86 -p udp --dport 7086 -j DNAT --to-destination 172.18.64.93:7086</code><br><br>dst rewritten to <span class="tip-ok">172.18.64.93</span>. Kernel recognises this as its own IP and delivers to the SRT listener.',
+      '<b>LRS VM — DNAT applied</b><br><code>iptables -t nat -A PREROUTING -d 172.18.64.86 -p udp --dport 7086 -j DNAT --to-destination 172.18.64.93:7086</code><br><br>dst rewritten to <span class="tip-ok">172.18.64.93</span>. Kernel delivers to SRT listener on port 7086.',
+    ],
+    'dtr-6-result': [
+      '',
+      '<b>LRS VM — no SNAT rule</b><br>Response leaves with src <span class="tip-warn">172.18.64.93</span> (VM\'s real IP). PSC NAT session was keyed to src <code>172.18.64.86</code> (ILB IP). <span class="tip-bad">Source mismatch — PSC NAT drops the response.</span>',
+      '<b>LRS VM — SNAT applied</b><br><code>iptables -t nat -A POSTROUTING -d 10.1.0.0/24 -p udp --sport 7086 -j SNAT --to-source 172.18.64.86</code><br><br>src rewritten to <span class="tip-ok">172.18.64.86</span> (ILB IP). PSC NAT session matches — response forwarded.',
+    ],
+    'dtr-7-result': [
+      '<b>Unreachable</b><br>Packet was dropped at the LRS VM kernel (no DNAT). PSC NAT never received a return packet.',
+      '<b>Unreachable</b><br>PSC NAT received the return packet but dropped it — wrong src (172.18.64.93 vs expected 172.18.64.86). Session not found.',
+      '<b>PSC NAT → Consumer</b><br>PSC NAT reverses its own translations: restores original consumer addresses. Consumer receives the SRT handshake reply from the expected PSC Endpoint IP. <span class="tip-ok">Connection established.</span>',
+    ],
+  };
+
+  function updateTips() {
+    Object.keys(TIPS_DYNAMIC).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.setAttribute('data-dnat-tip', TIPS_DYNAMIC[id][scenario]);
+    });
+  }
+
+  var dnatTooltip = document.getElementById('dnat-tooltip');
+  function showTip(e, html) {
+    if (!html || !dnatTooltip) return;
+    dnatTooltip.innerHTML = html;
+    dnatTooltip.style.display = 'block';
+    moveTipTo(e);
+  }
+  function moveTipTo(e) {
+    if (!dnatTooltip) return;
+    var x = e.clientX + 16, y = e.clientY - 10;
+    var tw = dnatTooltip.offsetWidth, th = dnatTooltip.offsetHeight;
+    if (x + tw > window.innerWidth - 12) x = e.clientX - tw - 16;
+    if (y + th > window.innerHeight - 12) y = e.clientY - th - 10;
+    dnatTooltip.style.left = x + 'px';
+    dnatTooltip.style.top = y + 'px';
+  }
+  function hideTip() { if (dnatTooltip) dnatTooltip.style.display = 'none'; }
+
+  var traceTable = document.getElementById('dnat-trace-table');
+  if (traceTable) {
+    traceTable.addEventListener('mouseover', function(e) {
+      var td = e.target.closest('td[data-dnat-tip]');
+      if (!td) { hideTip(); return; }
+      var tip = td.getAttribute('data-dnat-tip');
+      if (tip) showTip(e, tip);
+    });
+    traceTable.addEventListener('mousemove', moveTipTo);
+    traceTable.addEventListener('mouseout', function(e) {
+      if (!e.relatedTarget || !e.relatedTarget.closest('#dnat-trace-table')) hideTip();
+    });
+  }
+
+  // Hook guide + tips into scenario change
+  var _origScenarioBtns = document.querySelectorAll('[data-dnat-sc]');
+  _origScenarioBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      updateGuide();
+      updateTips();
+    });
+  });
+
+  updateGuide();
+  updateTips();
+  updateStats();
   requestAnimationFrame(update);
 })();
 </script>
