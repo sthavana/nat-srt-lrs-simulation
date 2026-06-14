@@ -90,6 +90,13 @@
   .ref-table .col-field { color: #f9ca24; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; white-space: nowrap; }
   .ref-table .col-type { color: #6c8cff; font-size: 12px; }
   .ref-table td.key strong { color: #4ecdc4; }
+  .ref-table tr.key-row td { background: #0d1f1e; }
+  .ref-table tr.key-row .col-field { color: #4ecdc4; }
+  .ref-table tr.dim .col-field { color: #7a6a3d; }
+  .ref-table tr.dim td { color: #5a6675; }
+  .ref-table .pill { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+  .ref-table .pill-key { color: #4ecdc4; background: #0d1f1e; border: 1px solid #1a4040; }
+  .ref-table .pill-plumb { color: #6b7b8d; background: #161b26; border: 1px solid #2a3040; }
 
   /* checklist / flow */
   .flow-box { background: #0d1117; border: 1px solid #1e2738; border-radius: 8px; padding: 16px 20px; margin: 10px 0; }
@@ -107,6 +114,78 @@
 </style>
 </head>
 <body>
+<!-- ===== Shared SRT site navigation (injected) ===== -->
+<style id="srtnav-style">
+  body { padding-left: 240px; }
+  .srtnav { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: #0c111b; border-right: 1px solid #1e2738; overflow-y: auto; z-index: 1000; padding: 16px 10px 40px; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .srtnav::-webkit-scrollbar { width: 8px; }
+  .srtnav::-webkit-scrollbar-thumb { background: #1e2738; border-radius: 4px; }
+  .srtnav-brand { padding: 4px 12px 14px; margin-bottom: 8px; border-bottom: 1px solid #1e2738; }
+  .srtnav-brand a { color: #4ecdc4; font-weight: 700; font-size: 14px; text-decoration: none; }
+  .srtnav-brand a span { color: #6b7b8d; font-weight: 400; }
+  .srtnav-link { display: block; font-size: 13px; color: #8899aa; text-decoration: none; padding: 7px 12px; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 1px; }
+  .srtnav-link:hover { background: #131a26; color: #c8d6e5; }
+  .srtnav-link.active { background: #0d1f1e; color: #4ecdc4; border-left-color: #4ecdc4; font-weight: 600; }
+  .srtnav-group { margin-top: 6px; }
+  .srtnav-ghead { display: flex; align-items: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7b8d; padding: 8px 12px; cursor: pointer; user-select: none; border-radius: 6px; }
+  .srtnav-ghead:hover { background: #131a26; }
+  .srtnav-arrow { margin-left: auto; font-size: 8px; color: #4a5568; transition: transform 0.2s; }
+  .srtnav-group.open .srtnav-arrow { transform: rotate(180deg); }
+  .srtnav-items { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
+  .srtnav-group.open .srtnav-items { max-height: 400px; }
+  .srtnav-items .srtnav-link { padding-left: 22px; font-size: 12.5px; }
+  .srtnav-toggle { display: none; position: fixed; top: 11px; right: 14px; z-index: 1002; background: #111620; border: 1px solid #1e2738; color: #4ecdc4; font-size: 16px; width: 40px; height: 34px; border-radius: 6px; cursor: pointer; }
+  @media (max-width: 860px) {
+    body { padding-left: 0; }
+    .srtnav { transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 4px 0 24px rgba(0,0,0,0.55); }
+    .srtnav.open { transform: translateX(0); }
+    .srtnav-toggle { display: block; }
+  }
+</style>
+<button class="srtnav-toggle" id="srtnavToggle" aria-label="Toggle navigation">&#9776;</button>
+<nav class="srtnav" id="srtnav">
+  <div class="srtnav-brand"><a href="index.html">SRT &amp; LRS <span>Unpacked</span></a></div>
+  <a class="srtnav-link" href="index.html">Overview</a>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Simulations <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="tcp-simulation.html">TCP Fundamentals</a>
+      <a class="srtnav-link" href="srt-simulation.html">SRT Protocol</a>
+      <a class="srtnav-link" href="nat-simulation.html">NAT / SRT / LRS</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Deployment Guides <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="psc-guide.html">LRS via PSC &mdash; iptables</a>
+      <a class="srtnav-link" href="psc-loopback-guide.html">LRS via PSC &mdash; Loopback</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Operations &amp; Troubleshooting <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="azure-log-analytics-kql.html">KQL Deep Dive</a>
+      <a class="srtnav-link" href="lrs-troubleshooting-guide.html">Analysing LRS Stream Issues</a>
+    </div>
+  </div>
+</nav>
+<script>
+(function(){
+  var path = (location.pathname.split('/').pop() || 'index.html');
+  if (path === '') path = 'index.html';
+  document.querySelectorAll('.srtnav-link').forEach(function(a){
+    var href = (a.getAttribute('href') || '').split('#')[0];
+    if (href === path) { a.classList.add('active'); var g = a.closest('.srtnav-group'); if (g) g.classList.add('open'); }
+  });
+  document.querySelectorAll('.srtnav-ghead').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+  var t = document.getElementById('srtnavToggle'), n = document.getElementById('srtnav');
+  if (t && n) t.addEventListener('click', function(){ n.classList.toggle('open'); });
+})();
+</script>
+<!-- ===== /Shared SRT site navigation ===== -->
+
 
 <div class="header">
   <a href="index.html" class="back-link">&larr; Back</a>
@@ -260,6 +339,56 @@ If RTT &gt;  latency buffer   <span class="kw">&rarr;</span>  recovery impossibl
       <li><code style="color:#00b894;">upstream_role_s</code> &mdash; whether a healthy redundant leg was carrying the stream.</li>
     </ol>
     <div style="margin-top:8px;">Loss counters (<code style="color:#00b894;">*_loss_d</code>) tell you something happened; <strong style="color:#c8d6e5;">drop</strong> counters tell you whether it mattered.</div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:12px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Complete schema &mdash; every column (getschema output)</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div class="prose" style="margin:10px 0;">
+      The full alphabetical listing, exactly as returned by <code>DatapathStats_CL | getschema</code>. <span style="color:#4ecdc4;">&#9679;</span> = a key diagnostic field; <span style="color:#6b7b8d;">&#9679;</span> = Azure/agent plumbing (rarely relevant to stream analysis).
+    </div>
+    <table class="ref-table">
+      <tr><th>ColumnName</th><th>ColumnType</th><th>Description</th></tr>
+      <tr class="dim"><td class="col-field">Computer<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Azure agent: name of the host that reported the record.</td></tr>
+      <tr class="dim"><td class="col-field">MG<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Azure Monitor management group ID.</td></tr>
+      <tr class="dim"><td class="col-field">ManagementGroupName<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Azure Monitor management group name.</td></tr>
+      <tr class="dim"><td class="col-field">RawData<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Raw unparsed log payload as ingested. Useful only for debugging the ingestion itself.</td></tr>
+      <tr class="dim"><td class="col-field">SourceSystem<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Ingestion pipeline / agent that delivered the record.</td></tr>
+      <tr class="dim"><td class="col-field">TenantId<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Log Analytics workspace (tenant) ID.</td></tr>
+      <tr><td class="col-field">TimeCreated_t</td><td class="col-type">datetime</td><td>When the stat was created at source (close to <code>TimeGenerated</code>, slight lag).</td></tr>
+      <tr class="key-row"><td class="col-field">TimeGenerated<span class="pill pill-key">key</span></td><td class="col-type">datetime</td><td>When the sample was ingested into Log Analytics. <strong>Primary time axis</strong> for every query.</td></tr>
+      <tr class="dim"><td class="col-field">Type<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Source table name of the record (<code>DatapathStats_CL</code>).</td></tr>
+      <tr class="dim"><td class="col-field">_ResourceId<span class="pill pill-plumb">plumbing</span></td><td class="col-type">string</td><td>Azure resource ID associated with the record.</td></tr>
+      <tr class="key-row"><td class="col-field">account_prefix_s<span class="pill pill-key">key</span></td><td class="col-type">string</td><td>Customer/account identifier (e.g. <code>globocomuni</code>). <strong>First filter</strong> in almost every query.</td></tr>
+      <tr><td class="col-field">id_s</td><td class="col-type">string</td><td>Stream/endpoint ID (e.g. <code>ingress-69fa6446...</code>). Unique per ingress endpoint.</td></tr>
+      <tr><td class="col-field">is_active_b</td><td class="col-type">bool</td><td>Whether the endpoint is currently active.</td></tr>
+      <tr><td class="col-field">is_grooming_endpoint_b</td><td class="col-type">bool</td><td>Whether this is a grooming endpoint.</td></tr>
+      <tr><td class="col-field">link_bw_d</td><td class="col-type">real</td><td>Estimated link bandwidth. <strong style="color:#f9ca24;">Often not populated</strong> &mdash; use <code>recv_bitrate_d</code> instead.</td></tr>
+      <tr class="key-row"><td class="col-field">ms_latency_d<span class="pill pill-key">key</span></td><td class="col-type">real</td><td>Configured SRT latency buffer (ms). The recovery window.</td></tr>
+      <tr class="key-row"><td class="col-field">ms_rtt_d<span class="pill pill-key">key</span></td><td class="col-type">real</td><td>Round-trip time (ms). Compare against <code>ms_latency_d</code> to judge recovery headroom.</td></tr>
+      <tr class="key-row"><td class="col-field">name_s<span class="pill pill-key">key</span></td><td class="col-type">string</td><td>Human-readable stream name (e.g. <code>LL08 - PSC</code>). The label you group and chart by.</td></tr>
+      <tr><td class="col-field">platform_s</td><td class="col-type">string</td><td>Underlying platform (e.g. <code>gcp</code>).</td></tr>
+      <tr><td class="col-field">protocol_s</td><td class="col-type">string</td><td>Transport protocol (e.g. <code>srt</code>).</td></tr>
+      <tr><td class="col-field">recv_bitrate_d</td><td class="col-type">real</td><td>Receive bitrate (Mbps). A drop to ~half of normal signals a degraded leg.</td></tr>
+      <tr><td class="col-field">recv_byte_d</td><td class="col-type">real</td><td>Total bytes received in the sample period.</td></tr>
+      <tr><td class="col-field">recv_pkt_d</td><td class="col-type">real</td><td>Total packets received in the sample period.</td></tr>
+      <tr class="key-row"><td class="col-field">recv_pkt_dropped_d<span class="pill pill-key">key</span></td><td class="col-type">real</td><td><strong style="color:#4ecdc4;">Packets the receiver never recovered in time</strong> &mdash; true unrecovered receive-side loss. The single most important impact metric.</td></tr>
+      <tr><td class="col-field">recv_pkt_loss_d</td><td class="col-type">real</td><td>Packets the receiver detected as missing (gaps in sequence).</td></tr>
+      <tr><td class="col-field">region_s</td><td class="col-type">string</td><td>Cloud region/zone (e.g. <code>southamerica-east1-b</code>). Key for spotting zone-localised events.</td></tr>
+      <tr><td class="col-field">snd_bitrate_d</td><td class="col-type">real</td><td>Send bitrate (Mbps) for this endpoint's outbound traffic. Flat = steady; spikes = surge.</td></tr>
+      <tr><td class="col-field">snd_byte_d</td><td class="col-type">real</td><td>Total bytes sent in the sample period.</td></tr>
+      <tr><td class="col-field">snd_pkt_d</td><td class="col-type">real</td><td>Total packets sent in the sample period.</td></tr>
+      <tr class="key-row"><td class="col-field">snd_pkt_dropped_d<span class="pill pill-key">key</span></td><td class="col-type">real</td><td><strong style="color:#4ecdc4;">Packets the sender gave up on</strong> &mdash; true unrecovered send-side loss.</td></tr>
+      <tr><td class="col-field">snd_pkt_loss_d</td><td class="col-type">real</td><td>Packets detected as lost on the send path (triggered retransmit requests).</td></tr>
+      <tr><td class="col-field">snd_pkt_retrans_d</td><td class="col-type">real</td><td>Packets actually retransmitted. <code>retrans &asymp; loss</code> means recovery was attempted.</td></tr>
+      <tr><td class="col-field">socket_d</td><td class="col-type">real</td><td>Socket identifier &mdash; distinguishes the individual legs (primary vs backup) within one stream.</td></tr>
+      <tr><td class="col-field">streamid_s</td><td class="col-type">string</td><td>SRT stream ID passed at connection time.</td></tr>
+      <tr><td class="col-field">upstream_pipeid_s</td><td class="col-type">string</td><td>Upstream pipe identifier. (Often empty &mdash; not always populated.)</td></tr>
+      <tr class="key-row"><td class="col-field">upstream_role_s<span class="pill pill-key">key</span></td><td class="col-type">string</td><td>Leg role: <code>primary</code>, <code>backup</code>, or blank. Critical for redundancy analysis.</td></tr>
+    </table>
   </div>
 
   <!-- 3. Methodology -->

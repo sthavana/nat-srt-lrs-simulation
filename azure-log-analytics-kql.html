@@ -104,6 +104,78 @@
 </style>
 </head>
 <body>
+<!-- ===== Shared SRT site navigation (injected) ===== -->
+<style id="srtnav-style">
+  body { padding-left: 240px; }
+  .srtnav { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: #0c111b; border-right: 1px solid #1e2738; overflow-y: auto; z-index: 1000; padding: 16px 10px 40px; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .srtnav::-webkit-scrollbar { width: 8px; }
+  .srtnav::-webkit-scrollbar-thumb { background: #1e2738; border-radius: 4px; }
+  .srtnav-brand { padding: 4px 12px 14px; margin-bottom: 8px; border-bottom: 1px solid #1e2738; }
+  .srtnav-brand a { color: #4ecdc4; font-weight: 700; font-size: 14px; text-decoration: none; }
+  .srtnav-brand a span { color: #6b7b8d; font-weight: 400; }
+  .srtnav-link { display: block; font-size: 13px; color: #8899aa; text-decoration: none; padding: 7px 12px; border-radius: 6px; border-left: 2px solid transparent; margin-bottom: 1px; }
+  .srtnav-link:hover { background: #131a26; color: #c8d6e5; }
+  .srtnav-link.active { background: #0d1f1e; color: #4ecdc4; border-left-color: #4ecdc4; font-weight: 600; }
+  .srtnav-group { margin-top: 6px; }
+  .srtnav-ghead { display: flex; align-items: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #6b7b8d; padding: 8px 12px; cursor: pointer; user-select: none; border-radius: 6px; }
+  .srtnav-ghead:hover { background: #131a26; }
+  .srtnav-arrow { margin-left: auto; font-size: 8px; color: #4a5568; transition: transform 0.2s; }
+  .srtnav-group.open .srtnav-arrow { transform: rotate(180deg); }
+  .srtnav-items { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
+  .srtnav-group.open .srtnav-items { max-height: 400px; }
+  .srtnav-items .srtnav-link { padding-left: 22px; font-size: 12.5px; }
+  .srtnav-toggle { display: none; position: fixed; top: 11px; right: 14px; z-index: 1002; background: #111620; border: 1px solid #1e2738; color: #4ecdc4; font-size: 16px; width: 40px; height: 34px; border-radius: 6px; cursor: pointer; }
+  @media (max-width: 860px) {
+    body { padding-left: 0; }
+    .srtnav { transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 4px 0 24px rgba(0,0,0,0.55); }
+    .srtnav.open { transform: translateX(0); }
+    .srtnav-toggle { display: block; }
+  }
+</style>
+<button class="srtnav-toggle" id="srtnavToggle" aria-label="Toggle navigation">&#9776;</button>
+<nav class="srtnav" id="srtnav">
+  <div class="srtnav-brand"><a href="index.html">SRT &amp; LRS <span>Unpacked</span></a></div>
+  <a class="srtnav-link" href="index.html">Overview</a>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Simulations <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="tcp-simulation.html">TCP Fundamentals</a>
+      <a class="srtnav-link" href="srt-simulation.html">SRT Protocol</a>
+      <a class="srtnav-link" href="nat-simulation.html">NAT / SRT / LRS</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Deployment Guides <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="psc-guide.html">LRS via PSC &mdash; iptables</a>
+      <a class="srtnav-link" href="psc-loopback-guide.html">LRS via PSC &mdash; Loopback</a>
+    </div>
+  </div>
+  <div class="srtnav-group open">
+    <div class="srtnav-ghead">Operations &amp; Troubleshooting <span class="srtnav-arrow">&#9650;</span></div>
+    <div class="srtnav-items">
+      <a class="srtnav-link" href="azure-log-analytics-kql.html">KQL Deep Dive</a>
+      <a class="srtnav-link" href="lrs-troubleshooting-guide.html">Analysing LRS Stream Issues</a>
+    </div>
+  </div>
+</nav>
+<script>
+(function(){
+  var path = (location.pathname.split('/').pop() || 'index.html');
+  if (path === '') path = 'index.html';
+  document.querySelectorAll('.srtnav-link').forEach(function(a){
+    var href = (a.getAttribute('href') || '').split('#')[0];
+    if (href === path) { a.classList.add('active'); var g = a.closest('.srtnav-group'); if (g) g.classList.add('open'); }
+  });
+  document.querySelectorAll('.srtnav-ghead').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+  var t = document.getElementById('srtnavToggle'), n = document.getElementById('srtnav');
+  if (t && n) t.addEventListener('click', function(){ n.classList.toggle('open'); });
+})();
+</script>
+<!-- ===== /Shared SRT site navigation ===== -->
+
 
 <div class="header">
   <a href="index.html" class="back-link">&larr; Back</a>

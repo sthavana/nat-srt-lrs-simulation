@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LRS via Private Service Connect &mdash; Setup Guide</title>
+<title>LRS via Private Service Connect &mdash; Loopback Setup Guide</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
@@ -171,89 +171,28 @@
 
 <div class="header">
   <a href="index.html" class="back-link">&larr; Back</a>
-  <h1><span>LRS via Private Service Connect</span> &mdash; Setup Guide</h1>
+  <h1><span>LRS via Private Service Connect</span> &mdash; Loopback Setup Guide</h1>
 </div>
 
 <div class="content">
 
   <!-- Overview -->
   <div class="intro">
-    This guide details how to connect <strong>SRT sources</strong> in a customer GCP VPC to <strong>Harmonic LRS Cloud Source</strong> using <strong>Google Private Service Connect (PSC) — Endpoint model</strong> instead of VPC peering.
+    This guide details how to connect <strong>SRT sources</strong> in a customer GCP VPC to <strong>Harmonic LRS Cloud Source</strong> using <strong>Google Private Service Connect (PSC) — Endpoint model with the Loopback approach</strong>.
     <br><br>
-    <strong>Architecture context:</strong> LRS runs in its own <strong>dedicated Harmonic VPC</strong> (separate from the VOS360 cluster VPC). LRS connects to VOS360 internally via <strong>VPC Peering</strong>. Harmonic publishes each LRS Cloud Source as a private service via an <strong>ILB + PSC Service Attachment</strong>. The customer creates a <strong>PSC Endpoint</strong> in their own VPC — a private IP from their own subnet — and SRT encoders connect to that IP.
+    <strong>How the loopback approach differs from iptables:</strong> Instead of iptables DNAT/SNAT rules on the LRS VM, the <strong>ILB frontend IP is added to the VM's loopback interface</strong>. The SRT listener is then bound directly to that IP — so response packets naturally carry <code>src = ILB IP</code>, satisfying PSC NAT session tracking without any iptables rules. This requires Syndicate to pass the ILB IP as the SRT listener bind address.
+    <br><br>
+    <strong>Architecture context:</strong> LRS runs in its own <strong>dedicated Harmonic VPC</strong>. Harmonic publishes each LRS Cloud Source via an <strong>ILB + PSC Service Attachment</strong>. The customer creates a <strong>PSC Endpoint</strong> in their own VPC and SRT encoders connect to that private IP.
     <br><br>
     <strong>Prerequisite:</strong> SRT streams from the customer headend must already be available in the customer's GCP VPC (e.g. via <strong>Google Cloud Interconnect / Direct Connect</strong>). This connectivity is the customer's responsibility. Harmonic's solution begins at the PSC boundary.
-    <br><br>
-    <strong>Why PSC instead of VPC Peering?</strong> VPC peering bridges two entire networks together, giving broad access between them. PSC provides <strong>controlled, granular connectivity</strong> — Harmonic publishes only specific services (one per LRS Cloud Source), and the customer connects only to those services. Neither side gains visibility into the other's full network.
-  </div>
-
-  <!-- Current Architecture Diagram -->
-  <div class="section-label">Current Architecture</div>
-  <div class="diagram" style="border-color:#ff6b6b40;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-      <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">Current</span>
-      <span style="font-size:12px;color:#6b7b8d;">SRT over public internet via corporate firewall</span>
-    </div>
-    <div class="diagram-row">
-      <div class="d-box" style="border-color:#f9ca24;min-width:160px;">
-        <div class="d-title" style="color:#f9ca24;">Globo Headend</div>
-        <div class="d-sub" style="margin-top:4px;">SRT Encoders</div>
-        <div class="d-sub">(10+ services)</div>
-        <div class="d-sub" style="margin-top:6px;font-size:10px;color:#6b7b8d;">Private IPs: <code style="color:#c8d6e5;font-size:10px;">10.x.x.x</code></div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-        <div class="d-arrow">&#10132;</div>
-      </div>
-
-      <div class="d-box" style="border-color:#ff6b6b;min-width:170px;">
-        <div class="d-title" style="color:#ff6b6b;">Corporate Firewall</div>
-        <div class="d-sub" style="margin-top:4px;">NAT + Port Forwarding</div>
-        <div class="d-sub" style="margin-top:6px;font-size:10px;line-height:1.6;text-align:left;">
-          <span style="color:#ff6b6b;">&#9888;</span> <span style="color:#6b7b8d;">Static public IP required</span><br>
-          <span style="color:#ff6b6b;">&#9888;</span> <span style="color:#6b7b8d;">UDP port forwarding per stream</span><br>
-          <span style="color:#ff6b6b;">&#9888;</span> <span style="color:#6b7b8d;">NAT translation overhead</span>
-        </div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-        <div class="d-arrow" style="color:#ff6b6b;">&#10132;</div>
-        <div class="d-label" style="color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">Public Internet</div>
-        <div style="font-size:10px;color:#4a5568;">Unpredictable latency<br>&amp; packet loss</div>
-      </div>
-
-      <div class="d-box" style="border-color:#6c8cff;min-width:160px;">
-        <div class="d-title" style="color:#6c8cff;">LRS Cloud Source</div>
-        <div class="d-sub">(Harmonic)</div>
-        <div class="d-sub" style="margin-top:4px;font-size:10px;">Public endpoint</div>
-        <div class="d-sub" style="font-size:10px;color:#ff6b6b;">&#9888; Exposed to internet</div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-        <div class="d-arrow">&#10132;</div>
-      </div>
-
-      <div class="d-box" style="border-color:#00b894;">
-        <div class="d-title" style="color:#00b894;">VOS 360</div>
-        <div class="d-sub">Transcoder</div>
-      </div>
-    </div>
-
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;justify-content:center;">
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">&#9888; Firewall holes required</span>
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">&#9888; Public IP exposure</span>
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">&#9888; NAT port mapping per stream</span>
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">&#9888; Higher SRT latency needed</span>
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#ff6b6b;background:#1a0d0d;border:1px solid #3d1a1a;">&#9888; Packet loss on public path</span>
-    </div>
   </div>
 
   <!-- Target Architecture Diagram -->
-  <div class="section-label" style="margin-top:28px;">Target Architecture <span style="font-size:11px;font-weight:400;color:#00b894;">&mdash; with Private Service Connect (Endpoint model)</span></div>
+  <div class="section-label">Architecture <span style="font-size:11px;font-weight:400;color:#00b894;">&mdash; Private Service Connect (Loopback approach)</span></div>
   <div class="diagram" style="border-color:#00b89440;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-      <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; Target</span>
-      <span style="font-size:12px;color:#6b7b8d;">SRT over Google private backbone via PSC Endpoint</span>
+      <span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; Loopback</span>
+      <span style="font-size:12px;color:#6b7b8d;">SRT over Google private backbone via PSC Endpoint — loopback bind approach</span>
     </div>
 
     <div style="display:grid;grid-template-columns:auto auto auto auto auto;gap:12px;justify-content:center;justify-items:center;align-items:center;">
@@ -264,13 +203,13 @@
         <div class="d-sub">(Globo &mdash; GCP)</div>
         <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
           <span style="color:#6b7b8d;">Subnet:</span> <code style="color:#f9ca24;font-size:10px;">10.100.0.0/24</code><br>
-          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">southamerica-east1</code>
+          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">south-america-east1</code>
         </div>
         <div style="margin-top:8px;padding:6px 10px;background:#1f1a0a;border:1px solid #3d2e0a;border-radius:6px;text-align:left;">
           <div style="font-size:10px;font-weight:700;color:#f9ca24;margin-bottom:4px;">PSC Endpoint (per stream)</div>
           <div style="font-size:10px;color:#6b7b8d;">Private IP from customer subnet</div>
           <div style="font-size:10px;color:#4ecdc4;margin-top:2px;">e.g. 10.100.0.2 &mdash; 10.100.0.11</div>
-          <div style="font-size:10px;color:#6b7b8d;margin-top:2px;">SRT encoders send here :7086 (primary) / :7090 (backup)</div>
+          <div style="font-size:10px;color:#6b7b8d;margin-top:2px;">SRT encoders send here :7086</div>
         </div>
       </div>
 
@@ -285,18 +224,16 @@
       <div class="d-box" style="border-color:#6c8cff;min-width:200px;">
         <div class="d-title" style="color:#6c8cff;">Harmonic LRS VPC</div>
         <div class="d-sub" style="margin-top:6px;text-align:left;font-size:10px;line-height:1.6;">
-          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">southamerica-east1</code> <span style="color:#00b894;">&#10003; same</span><br>
-          <span style="color:#6b7b8d;">LRS Subnet:</span> <code style="color:#6c8cff;font-size:10px;">172.16.0.0/18</code><br>
-          <span style="color:#6b7b8d;">PSC NAT Subnet:</span> <code style="color:#6c8cff;font-size:10px;">10.200.0.0/24</code>
+          <span style="color:#6b7b8d;">Region:</span> <code style="color:#c8d6e5;font-size:10px;">south-america-east1</code> <span style="color:#00b894;">&#10003; same</span>
         </div>
         <div style="margin-top:8px;padding:6px 10px;background:#121630;border:1px solid #1e3a5f;border-radius:6px;text-align:left;">
           <div style="font-size:10px;font-weight:700;color:#6c8cff;margin-bottom:4px;">Per stream (Harmonic manages)</div>
           <div style="font-size:10px;color:#6b7b8d;">Service Attachment</div>
           <div style="font-size:10px;color:#4a5568;">&#8595;</div>
-          <div style="font-size:10px;color:#6b7b8d;">ILB (UDP 7086 / 7090)</div>
+          <div style="font-size:10px;color:#6b7b8d;">ILB (UDP 7086)</div>
           <div style="font-size:10px;color:#4a5568;">&#8595;</div>
-          <div style="font-size:10px;color:#6b7b8d;">LRS VM &mdash; SRT Listener :7086/:7090</div>
-          <div style="font-size:10px;color:#4a5568;margin-top:2px;">iptables DNAT + SNAT</div>
+          <div style="font-size:10px;color:#6b7b8d;">LRS VM &mdash; ILB IP on loopback (lo)</div>
+          <div style="font-size:10px;color:#4ecdc4;margin-top:2px;">SRT listener bound to ILB IP:7086</div>
         </div>
       </div>
 
@@ -346,27 +283,21 @@
           <span style="color:#6c8cff;">&#9679;</span> LRS VPC &amp; Cloud Source provisioning<br>
           <span style="color:#6c8cff;">&#9679;</span> ILB + PSC Service Attachment per stream<br>
           <span style="color:#6c8cff;">&#9679;</span> PSC NAT subnet per stream<br>
+          <span style="color:#6c8cff;">&#9679;</span> Add ILB IP to VM loopback + bind SRT listener<br>
           <span style="color:#6c8cff;">&#9679;</span> Share Service Attachment URI with customer<br>
           <span style="color:#6c8cff;">&#9679;</span> VPC Peering to VOS 360
         </div>
       </div>
     </div>
 
-    <div style="margin-top:16px;padding:10px 14px;background:#1f1a0a;border:1px solid #3d2e0a;border-radius:8px;font-size:11px;color:#6b7b8d;line-height:1.6;">
-      <strong style="color:#f9ca24;">Prerequisite &amp; demarcation:</strong> Harmonic assumes SRT sources are <strong style="color:#c8d6e5;">already available in the customer's GCP VPC</strong>. How the customer gets SRT streams from the headend into GCP (e.g. via <strong style="color:#c8d6e5;">Google Cloud Interconnect / Direct Connect</strong>) is <strong style="color:#f9ca24;">purely the customer's responsibility</strong>. The Harmonic solution begins at the <strong style="color:#c8d6e5;">PSC Service Attachment boundary</strong>.
-    </div>
-
     <div style="text-align:center;margin-top:16px;font-size:11px;color:#4a5568;">
       SRT encoders connect to <code style="color:#4ecdc4;font-size:11px;">srt://10.100.0.x:7086</code> &mdash; a private IP from the customer's own subnet. No public internet, no internet NAT.
-    </div>
-    <div style="text-align:center;margin-top:8px;font-size:11px;color:#4a5568;">
-      <strong style="color:#f9ca24;">Key requirement:</strong> The customer subnet and LRS must be in the <strong style="color:#c8d6e5;">same GCP region</strong>.
     </div>
 
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;justify-content:center;">
       <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; No firewall holes</span>
       <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; No public IP exposure</span>
-      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; No internet NAT</span>
+      <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; No iptables rules on VM</span>
       <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; Lower SRT latency</span>
       <span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;color:#00b894;background:#0a1f1a;border:1px solid #0a3d2e;">&#10003; Zero packet loss (private backbone)</span>
     </div>
@@ -376,12 +307,13 @@
   <div class="section-label">Roles &amp; Responsibilities</div>
   <table class="ref-table">
     <tr><th>#</th><th>Action</th><th>Owner</th></tr>
-    <tr><td>1</td><td>Deploy LRS Cloud Source VM (with IP forwarding and iptables startup script)</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
+    <tr><td>1</td><td>Deploy LRS Cloud Source VM with IP forwarding enabled and loopback startup script</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
     <tr><td>2</td><td>Create ILB + PSC Service Attachment per stream</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
     <tr><td>3</td><td>Share Service Attachment URI with customer</td><td><span class="step-owner owner-harmonic">Harmonic</span></td></tr>
     <tr><td>4</td><td>Create PSC Endpoint using the Service Attachment URI</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
     <tr><td>5</td><td>Share PSC Endpoint IP with Harmonic for verification</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
-    <tr><td>6</td><td>Configure SRT encoder destination to PSC Endpoint IP (port 7086 primary, 7090 backup)</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>6</td><td>Configure firewall rules (UDP 7086 egress and ingress)</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
+    <tr><td>7</td><td>Configure SRT encoder destination to PSC Endpoint IP:7086</td><td><span class="step-owner owner-customer">Customer</span></td></tr>
   </table>
 
   <!-- Prerequisites -->
@@ -393,71 +325,8 @@
       <li>Customer has a <strong>subnet</strong> in their VPC in the same region (for PSC Endpoint IPs)</li>
       <li>Customer has <strong>Compute Network Admin</strong> (<code>roles/compute.networkAdmin</code>) IAM role</li>
       <li>Compute Engine API is enabled in the customer's project</li>
-      <li>Harmonic has deployed the LRS Cloud Source with IP forwarding enabled</li>
+      <li>Harmonic has deployed the LRS Cloud Source with IP forwarding enabled and ILB IP on loopback</li>
     </ul>
-  </div>
-
-  <!-- One-Time Customer Setup -->
-  <div class="section-label">One-Time Customer Setup &mdash; Do Once Before Any Streams</div>
-  <div class="step-card" style="margin-bottom:20px;border-left:3px solid #f9ca24;">
-    <div class="step-header">
-      <span class="step-title">Configure Firewall Rules</span>
-      <span class="step-owner owner-customer">Customer</span>
-    </div>
-    <div class="step-desc">
-      Create firewall rules allowing <strong>UDP 7086</strong> (primary) and <strong>UDP 7090</strong> (backup) traffic to and from the PSC subnet. These rules are <strong>one-time</strong> &mdash; they cover all current and future streams with no changes needed when new streams are added.
-    </div>
-    <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-      <span class="arrow">&#9654;</span>
-      <span class="toggle-title">Console Steps</span>
-      <span class="toggle-hint">click to expand</span>
-    </div>
-    <div class="desc-body">
-      <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
-        <strong style="color:#c8d6e5;">Egress rule (SRT traffic to LRS)</strong><br>
-        1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Firewall &rarr; Create Firewall Rule</strong><br>
-        2. Name: <code style="color:#f9ca24;font-size:12px;">allow-srt-to-lrs</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
-        3. Direction: <strong style="color:#c8d6e5;">Egress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
-        4. Destination IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
-        5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, ports <strong style="color:#c8d6e5;">7086, 7090</strong><br>
-        6. Click <strong style="color:#c8d6e5;">Create</strong><br>
-        <br>
-        <strong style="color:#c8d6e5;">Ingress rule (SRT return traffic &mdash; NAKs, ACKs)</strong><br>
-        1. Click <strong style="color:#c8d6e5;">Create Firewall Rule</strong> again<br>
-        2. Name: <code style="color:#f9ca24;font-size:12px;">allow-srt-from-lrs</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
-        3. Direction: <strong style="color:#c8d6e5;">Ingress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
-        4. Source IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
-        5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, ports <strong style="color:#c8d6e5;">7086, 7090</strong><br>
-        6. Click <strong style="color:#c8d6e5;">Create</strong>
-      </div>
-    </div>
-    <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-      <span class="arrow">&#9654;</span>
-      <span class="toggle-title">gcloud CLI</span>
-      <span class="toggle-hint">click to expand</span>
-    </div>
-    <div class="desc-body">
-      <div class="code-block"><span class="comment"># Allow SRT egress to PSC endpoint subnet (primary + backup)</span>
-gcloud compute firewall-rules create <span class="placeholder">allow-srt-to-lrs</span> \
-    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
-    <span class="flag">--direction=</span><span class="value">EGRESS</span> \
-    <span class="flag">--action=</span><span class="value">ALLOW</span> \
-    <span class="flag">--rules=</span><span class="value">udp:7086,udp:7090</span> \
-    <span class="flag">--destination-ranges=</span><span class="placeholder">10.100.0.0/24</span> \
-    <span class="flag">--description=</span><span class="value">"SRT outbound to Harmonic LRS via PSC"</span>
-
-<span class="comment"># Allow SRT return traffic (NAKs, ACKs from LRS)</span>
-gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lrs</span> \
-    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
-    <span class="flag">--direction=</span><span class="value">INGRESS</span> \
-    <span class="flag">--action=</span><span class="value">ALLOW</span> \
-    <span class="flag">--rules=</span><span class="value">udp:7086,udp:7090</span> \
-    <span class="flag">--source-ranges=</span><span class="placeholder">10.100.0.0/24</span> \
-    <span class="flag">--description=</span><span class="value">"SRT return traffic from Harmonic LRS via PSC"</span></div>
-    </div>
-    <div class="info-box info-warn" style="margin-top:12px;">
-      <strong>SRT is bidirectional UDP:</strong> SRT encoders are Callers (initiating the connection), but UDP requires both directions to be open. The LRS Listener sends NAKs, ACKs, and retransmitted packets back to the Caller. Both egress and ingress rules are required.
-    </div>
   </div>
 
   <!-- Step-by-Step Procedure -->
@@ -473,10 +342,36 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
           <span class="step-owner owner-harmonic">Harmonic</span>
         </div>
         <div class="step-desc">
-          Harmonic deploys the <strong>LRS Cloud Source VM</strong> via Syndicate. The VM must be created with <strong>IP forwarding enabled</strong> (<code>--can-ip-forward</code>) and a startup script that applies <strong>iptables DNAT + SNAT rules</strong>. These are required because GCP's Internal Passthrough NLB forwards packets to the VM with the destination IP unchanged — the iptables rules handle the address translation at the VM level.
+          Harmonic deploys the <strong>LRS Cloud Source VM</strong> via Syndicate. The VM must be created with <strong>IP forwarding enabled</strong> (<code>--can-ip-forward</code>). After the ILB is created, Syndicate adds the <strong>ILB frontend IP to the VM's loopback interface</strong> and binds the SRT listener to that IP. This means response packets naturally carry <code>src = ILB IP</code> — PSC NAT matches the session without any iptables rules.
         </div>
-        <div class="info-box info-note">
-          <strong>LRS development requirement:</strong> <code>--can-ip-forward</code> must be set at VM creation time in Syndicate. The iptables rules are applied via a startup script parameterised with the ILB IP. This is a one-time Syndicate pipeline change that enables all future PSC-connected Cloud Sources.
+
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">How the loopback works</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            <strong style="color:#c8d6e5;">Why loopback?</strong><br>
+            GCP's Internal Passthrough NLB forwards packets to the VM with <code style="color:#4ecdc4;font-size:12px;">dst = ILB IP</code> unchanged. The kernel would normally drop a packet destined for an IP not assigned to any interface. Adding the ILB IP to the loopback interface (<code style="color:#4ecdc4;font-size:12px;">lo</code>) makes the kernel accept it as a local address.<br><br>
+            <strong style="color:#c8d6e5;">Why bind the listener to the ILB IP?</strong><br>
+            When a socket is bound to the ILB IP, the OS uses that IP as the source address on all response packets (NAKs, ACKs, retransmissions). PSC NAT tracks sessions expecting <code style="color:#4ecdc4;font-size:12px;">src = ILB IP</code> on the return path — binding ensures this is satisfied automatically, with no iptables rules needed.<br><br>
+            <strong style="color:#c8d6e5;">What --can-ip-forward does</strong><br>
+            The ILB IP is assigned to the loopback interface (<code style="color:#4ecdc4;font-size:12px;">lo</code>), not to <code style="color:#4ecdc4;font-size:12px;">ens4</code> (the NIC). When packets leave through <code style="color:#4ecdc4;font-size:12px;">ens4</code> with <code style="color:#4ecdc4;font-size:12px;">src = ILB IP</code>, GCP's network enforces that the source IP must match the NIC's assigned IP. <code style="color:#4ecdc4;font-size:12px;">--can-ip-forward</code> disables this check — allowing the ILB IP to be used as source on outgoing packets.<br><br>
+            <strong style="color:#c8d6e5;">Startup script (on LRS VM)</strong>
+            <div class="code-block" style="margin-top:8px;"><span class="comment"># Add ILB IP to loopback (applied at VM startup via systemd)</span>
+ip addr add <span class="placeholder">ILB_IP</span>/32 dev lo</div>
+            <div class="code-block"><span class="comment"># SRT listener bound to ILB IP (Syndicate passes this at startup)</span>
+srt-live-transmit "srt://<span class="placeholder">ILB_IP</span>:7086?mode=listener" ...</div>
+          </div>
+        </div>
+
+        <div class="info-box info-note" style="margin-top:12px;">
+          <strong>LRS development requirement:</strong> <code>--can-ip-forward</code> must be set at VM creation time in Syndicate. Syndicate must also pass the ILB IP as the SRT listener bind address at startup. This is a one-time Syndicate pipeline change that enables all future PSC-connected Cloud Sources.
+        </div>
+
+        <div class="info-box info-warn" style="margin-top:8px;">
+          <strong>Compared to iptables approach:</strong> The loopback approach eliminates iptables DNAT/SNAT rules on the VM but requires Syndicate to bind the SRT listener to the ILB IP. The iptables approach requires no application-layer change — the listener stays on <code>0.0.0.0:7086</code>.
         </div>
       </div>
     </div>
@@ -503,7 +398,7 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             <strong style="color:#c8d6e5;">Instance Group</strong><br>
             1. Go to <strong style="color:#c8d6e5;">Compute Engine &rarr; Instance Groups</strong><br>
             2. Click <strong style="color:#c8d6e5;">Create instance group &rarr; New unmanaged instance group</strong><br>
-            3. Name: <code style="color:#f9ca24;font-size:12px;">poc-srt-01-lrs-ig</code> &nbsp;&bull;&nbsp; Zone: select zone<br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code> &nbsp;&bull;&nbsp; Zone: select zone<br>
             4. Under <strong style="color:#c8d6e5;">VM instances</strong>, add the LRS VM<br>
             5. Click <strong style="color:#c8d6e5;">Create</strong><br>
             <br>
@@ -511,8 +406,8 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             1. Go to <strong style="color:#c8d6e5;">Network Services &rarr; Load Balancing &rarr; Create load balancer</strong><br>
             2. Select <strong style="color:#c8d6e5;">Network Load Balancer (TCP/UDP/SSL)</strong><br>
             3. Select <strong style="color:#c8d6e5;">Passthrough</strong> &rarr; <strong style="color:#c8d6e5;">Internal</strong> &rarr; Click <strong style="color:#c8d6e5;">Continue</strong><br>
-            4. <strong style="color:#c8d6e5;">Backend configuration</strong>: Name <code style="color:#f9ca24;font-size:12px;">poc-srt-01-ilb</code>, Protocol <strong style="color:#c8d6e5;">UDP</strong>, Region: select region<br>
-            5. Add backend &rarr; select instance group <code style="color:#f9ca24;font-size:12px;">poc-srt-01-lrs-ig</code><br>
+            4. <strong style="color:#c8d6e5;">Backend configuration</strong>: Name <code style="color:#f9ca24;font-size:12px;">pfc01-ilb</code>, Protocol <strong style="color:#c8d6e5;">UDP</strong>, Region: select region<br>
+            5. Add backend &rarr; select instance group <code style="color:#f9ca24;font-size:12px;">pfc01-vm-group</code><br>
             6. Health check: select <code style="color:#f9ca24;font-size:12px;">psc-health-check</code><br>
             7. <strong style="color:#c8d6e5;">Frontend configuration</strong>: Protocol <strong style="color:#c8d6e5;">UDP</strong>, Port <strong style="color:#c8d6e5;">7086</strong><br>
             8. Click <strong style="color:#c8d6e5;">Create</strong><br>
@@ -520,9 +415,9 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
             <strong style="color:#c8d6e5;">PSC Service Attachment</strong><br>
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
             2. Click <strong style="color:#c8d6e5;">Publish service</strong><br>
-            3. Name: <code style="color:#f9ca24;font-size:12px;">poc-srt-01-sa</code><br>
-            4. Load balancer: select <code style="color:#f9ca24;font-size:12px;">poc-srt-01-ilb</code><br>
-            5. NAT subnets: select <code style="color:#f9ca24;font-size:12px;">harmonic-psc-nat-subnet</code><br>
+            3. Name: <code style="color:#f9ca24;font-size:12px;">pfc01-service-attachment</code><br>
+            4. Load balancer: select <code style="color:#f9ca24;font-size:12px;">pfc01-ilb-forwarding-rule</code><br>
+            5. NAT subnets: select <code style="color:#f9ca24;font-size:12px;">psc-nat-subnet-pfc01</code><br>
             6. Connection preference: <strong style="color:#c8d6e5;">Accept selected connections</strong><br>
             7. Consumer accept list: add customer project ID, connection limit <strong style="color:#c8d6e5;">10</strong><br>
             8. Click <strong style="color:#c8d6e5;">Add service</strong>
@@ -536,34 +431,34 @@ gcloud compute firewall-rules create <span class="placeholder">allow-srt-from-lr
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># 1. Create instance group for the LRS VM</span>
-gcloud compute instance-groups unmanaged create <span class="placeholder">poc-srt-01-lrs-ig</span> \
+gcloud compute instance-groups unmanaged create <span class="placeholder">pfc01-vm-group</span> \
     <span class="flag">--zone=</span><span class="placeholder">ZONE</span>
-gcloud compute instance-groups unmanaged add-instances <span class="placeholder">poc-srt-01-lrs-ig</span> \
+gcloud compute instance-groups unmanaged add-instances <span class="placeholder">pfc01-vm-group</span> \
     <span class="flag">--zone=</span><span class="placeholder">ZONE</span> \
     <span class="flag">--instances=</span><span class="placeholder">LRS_VM_NAME</span>
 
 <span class="comment"># 2. Create backend service</span>
-gcloud compute backend-services create <span class="placeholder">poc-srt-01-ilb</span> \
+gcloud compute backend-services create <span class="placeholder">pfc01-ilb</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--protocol=</span><span class="value">UDP</span> \
     <span class="flag">--health-checks=</span><span class="value">psc-health-check</span> \
     <span class="flag">--load-balancing-scheme=</span><span class="value">INTERNAL</span>
 
 <span class="comment"># 3. Create ILB forwarding rule (gets a private IP from LRS subnet)</span>
-gcloud compute forwarding-rules create <span class="placeholder">poc-srt-01-ilb</span> \
+gcloud compute forwarding-rules create <span class="placeholder">pfc01-ilb-forwarding-rule</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--load-balancing-scheme=</span><span class="value">INTERNAL</span> \
-    <span class="flag">--backend-service=</span><span class="placeholder">poc-srt-01-ilb</span> \
-    <span class="flag">--ports=</span><span class="value">7086,7090</span> \
+    <span class="flag">--backend-service=</span><span class="placeholder">pfc01-ilb</span> \
+    <span class="flag">--ports=</span><span class="value">7086</span> \
     <span class="flag">--ip-protocol=</span><span class="value">UDP</span>
 
 <span class="comment"># 4. Create PSC Service Attachment</span>
-gcloud compute service-attachments create <span class="placeholder">poc-srt-01-sa</span> \
+gcloud compute service-attachments create <span class="placeholder">pfc01-service-attachment</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
-    <span class="flag">--producer-forwarding-rule=</span><span class="placeholder">poc-srt-01-ilb</span> \
+    <span class="flag">--producer-forwarding-rule=</span><span class="placeholder">pfc01-ilb-forwarding-rule</span> \
     <span class="flag">--connection-preference=</span><span class="value">ACCEPT_MANUAL</span> \
-    <span class="flag">--consumer-accept-list=</span><span class="placeholder">CUSTOMER_PROJECT_ID</span>=1 \
-    <span class="flag">--nat-subnets=</span><span class="placeholder">harmonic-psc-nat-subnet</span></div>
+    <span class="flag">--consumer-accept-list=</span><span class="placeholder">CUSTOMER_PROJECT_ID</span>=10 \
+    <span class="flag">--nat-subnets=</span><span class="placeholder">psc-nat-subnet-pfc01</span></div>
         </div>
 
         <div class="info-box info-note" style="margin-top:12px;">
@@ -591,7 +486,7 @@ gcloud compute service-attachments create <span class="placeholder">poc-srt-01-s
         <div class="desc-body">
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Published services</strong><br>
-            2. Click on <strong style="color:#c8d6e5;">poc-srt-01-sa</strong> to open the details page<br>
+            2. Click on <strong style="color:#c8d6e5;">pfc01-service-attachment</strong> to open the details page<br>
             3. Copy the value under <strong style="color:#c8d6e5;">Service attachment</strong> — this is the URI to share with the customer
           </div>
         </div>
@@ -603,12 +498,12 @@ gcloud compute service-attachments create <span class="placeholder">poc-srt-01-s
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Retrieve the Service Attachment URI</span>
-gcloud compute service-attachments describe <span class="placeholder">poc-srt-01-sa</span> \
+gcloud compute service-attachments describe <span class="placeholder">pfc01-service-attachment</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(selfLink)"</span>
 
 <span class="comment"># Output example:</span>
-<span class="value">https://www.googleapis.com/compute/v1/projects/e-globocomuni-vos360-prod/regions/southamerica-east1/serviceAttachments/poc-srt-01-sa</span></div>
+<span class="value">https://www.googleapis.com/compute/v1/projects/harmonic-lrs-prod/regions/south-america-east1/serviceAttachments/pfc01-service-attachment</span></div>
         </div>
       </div>
     </div>
@@ -649,26 +544,26 @@ gcloud compute service-attachments describe <span class="placeholder">poc-srt-01
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Reserve a private IP from customer subnet</span>
-gcloud compute addresses create <span class="placeholder">poc-srt-01-endpoint-ip</span> \
+gcloud compute addresses create <span class="placeholder">pfc01-endpoint-ip</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--subnet=</span><span class="placeholder">CUSTOMER_SUBNET</span> \
     <span class="flag">--purpose=</span><span class="value">GCE_ENDPOINT</span>
 
 <span class="comment"># Create the PSC Endpoint forwarding rule</span>
-gcloud compute forwarding-rules create <span class="placeholder">poc-srt-01-psc-endpoint</span> \
+gcloud compute forwarding-rules create <span class="placeholder">pfc01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
-    <span class="flag">--address=</span><span class="placeholder">poc-srt-01-endpoint-ip</span> \
+    <span class="flag">--address=</span><span class="placeholder">pfc01-endpoint-ip</span> \
     <span class="flag">--target-service-attachment=</span><span class="placeholder">SERVICE_ATTACHMENT_URI</span>
 
 <span class="comment"># Verify connection is ACCEPTED and get the assigned IP</span>
-gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-psc-endpoint</span> \
+gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"yaml(IPAddress,pscConnectionStatus)"</span></div>
         </div>
 
         <div class="info-box info-warn" style="margin-top:12px;">
-          <strong>Expected: PENDING first.</strong> Once created, the endpoint will initially show <code>pscConnectionStatus: PENDING</code> — this is expected. Contact Harmonic and share the reserved endpoint IP. Harmonic will accept the connection on their side. Once accepted, re-run the describe command to confirm status shows <code>ACCEPTED</code> before proceeding.
+          <strong>Wait for ACCEPTED:</strong> The endpoint status must show <code>pscConnectionStatus: ACCEPTED</code> before proceeding. If it shows <code>PENDING</code>, Harmonic needs to verify the customer project is in the Service Attachment accept list.
         </div>
       </div>
     </div>
@@ -692,7 +587,7 @@ gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-ps
         <div class="desc-body">
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
-            2. Find the endpoint <strong style="color:#c8d6e5;">poc-srt-01-psc-endpoint</strong> in the list<br>
+            2. Find the endpoint <strong style="color:#c8d6e5;">pfc01-psc-endpoint</strong> in the list<br>
             3. Copy the value in the <strong style="color:#c8d6e5;">IP address</strong> column<br>
             4. Share this IP with Harmonic for verification
           </div>
@@ -705,7 +600,7 @@ gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-ps
         </div>
         <div class="desc-body">
           <div class="code-block"><span class="comment"># Get the assigned PSC Endpoint IP</span>
-gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-psc-endpoint</span> \
+gcloud compute forwarding-rules describe <span class="placeholder">pfc01-psc-endpoint</span> \
     <span class="flag">--region=</span><span class="placeholder">REGION</span> \
     <span class="flag">--format=</span><span class="value">"value(IPAddress)"</span>
 
@@ -720,18 +615,79 @@ gcloud compute forwarding-rules describe <span class="placeholder">poc-srt-01-ps
       <div class="step-dot">6</div>
       <div class="step-card" style="border-left:3px solid #f9ca24;">
         <div class="step-header">
+          <span class="step-title">Customer Configures Firewall Rules</span>
+          <span class="step-owner owner-customer">Customer</span>
+        </div>
+        <div class="step-desc">
+          The customer creates firewall rules allowing <strong>UDP 7086</strong> traffic to and from the PSC subnet. These rules are <strong>one-time</strong> — they cover all current and future streams on the same subnet, with no changes needed when new streams are added.
+        </div>
+        <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">Console Steps</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
+            <strong style="color:#c8d6e5;">Egress rule (SRT traffic to LRS)</strong><br>
+            1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Firewall &rarr; Create Firewall Rule</strong><br>
+            2. Name: <code style="color:#f9ca24;font-size:12px;">srt-allow-egress</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
+            3. Direction: <strong style="color:#c8d6e5;">Egress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
+            4. Destination IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
+            5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, port <strong style="color:#c8d6e5;">7086</strong><br>
+            6. Click <strong style="color:#c8d6e5;">Create</strong><br>
+            <br>
+            <strong style="color:#c8d6e5;">Ingress rule (SRT return traffic — NAKs, ACKs)</strong><br>
+            1. Click <strong style="color:#c8d6e5;">Create Firewall Rule</strong> again<br>
+            2. Name: <code style="color:#f9ca24;font-size:12px;">srt-allow-ingress</code> &nbsp;&bull;&nbsp; Network: customer VPC<br>
+            3. Direction: <strong style="color:#c8d6e5;">Ingress</strong> &nbsp;&bull;&nbsp; Action: <strong style="color:#c8d6e5;">Allow</strong><br>
+            4. Source IP ranges: <code style="color:#f9ca24;font-size:12px;">10.100.0.0/24</code><br>
+            5. Protocols and ports: <strong style="color:#c8d6e5;">UDP</strong>, port <strong style="color:#c8d6e5;">7086</strong><br>
+            6. Click <strong style="color:#c8d6e5;">Create</strong>
+          </div>
+        </div>
+
+        <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+          <span class="arrow">&#9654;</span>
+          <span class="toggle-title">gcloud CLI</span>
+          <span class="toggle-hint">click to expand</span>
+        </div>
+        <div class="desc-body">
+          <div class="code-block"><span class="comment"># Allow SRT egress to PSC endpoint subnet</span>
+gcloud compute firewall-rules create <span class="placeholder">srt-allow-egress</span> \
+    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
+    <span class="flag">--direction=</span><span class="value">EGRESS</span> \
+    <span class="flag">--allow=</span><span class="value">udp:7086</span> \
+    <span class="flag">--destination-ranges=</span><span class="placeholder">10.100.0.0/24</span>
+
+<span class="comment"># Allow SRT return traffic (NAKs, ACKs from LRS)</span>
+gcloud compute firewall-rules create <span class="placeholder">srt-allow-ingress</span> \
+    <span class="flag">--network=</span><span class="placeholder">CUSTOMER_VPC</span> \
+    <span class="flag">--direction=</span><span class="value">INGRESS</span> \
+    <span class="flag">--allow=</span><span class="value">udp:7086</span> \
+    <span class="flag">--source-ranges=</span><span class="placeholder">10.100.0.0/24</span></div>
+        </div>
+
+        <div class="info-box info-warn">
+          <strong>SRT is bidirectional UDP:</strong> SRT sources are Callers (initiating the connection), but SRT uses UDP which requires both directions to be open. The LRS Listener sends NAKs, ACKs, and retransmitted packets back to the Caller. Both egress and ingress rules are required.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 7 -->
+    <div class="step">
+      <div class="step-dot">7</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
           <span class="step-title">Customer Configures SRT Encoders</span>
           <span class="step-owner owner-customer">Customer</span>
         </div>
         <div class="step-desc">
-          Configure the SRT encoder to connect to the LRS Cloud Source using the <strong>PSC Endpoint IP</strong> from Step 4. Use port <strong>7086</strong> for the primary stream and port <strong>7090</strong> for the backup stream.
+          Configure each SRT encoder to connect to the LRS Cloud Source using the <strong>PSC Endpoint IP</strong> from Step 4 and port <strong>7086</strong>.
         </div>
         <div class="code-block"><span class="comment"># SRT Encoder Configuration</span>
-<span class="comment"># Primary stream</span>
-srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="value">7086</span>?mode=<span class="value">caller</span>&amp;passphrase=<span class="placeholder">&lt;provided-by-harmonic&gt;</span>&amp;pbkeylen=<span class="value">16</span>
-
-<span class="comment"># Backup stream</span>
-srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="value">7090</span>?mode=<span class="value">caller</span>&amp;passphrase=<span class="placeholder">&lt;provided-by-harmonic&gt;</span>&amp;pbkeylen=<span class="value">16</span>
+Mode:        <span class="value">Caller</span>
+Destination: <span class="value">10.100.0.2</span>:<span class="value">7086</span>   <span class="comment"># PSC Endpoint IP assigned in Step 4</span>
+Protocol:    <span class="value">SRT</span> (over UDP)
 
 <span class="comment"># The LRS Cloud Source is the Listener</span>
 <span class="comment"># The SRT encoder is the Caller — it initiates the connection</span>
@@ -740,21 +696,16 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
           <tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
           <tr><td>SRT Mode</td><td><strong style="color:#4ecdc4;">Caller</strong></td><td>Encoder initiates connection to LRS</td></tr>
           <tr><td>Destination IP</td><td><code>10.100.0.x</code></td><td>PSC Endpoint IP assigned by GCP (from customer subnet)</td></tr>
-          <tr><td>Destination Port (Primary)</td><td><code>7086</code></td><td>LRS SRT listener port — primary stream</td></tr>
-          <tr><td>Destination Port (Backup)</td><td><code>7090</code></td><td>LRS SRT listener port — backup stream</td></tr>
-          <tr><td>Encryption</td><td>AES-128</td><td>Passphrase + pbkeylen=16 — provided by Harmonic</td></tr>
+          <tr><td>Destination Port</td><td><code>7086</code></td><td>LRS SRT listener port</td></tr>
           <tr><td>Protocol</td><td>SRT over UDP</td><td>Encrypted, reliable transport</td></tr>
           <tr><td>Latency</td><td><code>120</code>&ndash;<code>200</code> ms</td><td>Can be lowered vs public internet path</td></tr>
         </table>
-        <div class="info-box info-success" style="margin-top:12px;">
-          <strong>Advantage over corporate firewall:</strong> SRT traffic flows over Google's private backbone (Direct Connect &rarr; customer VPC &rarr; PSC &rarr; LRS VPC) with no internet NAT, no public IP exposure, and lower latency. SRT latency settings can be reduced compared to public internet paths.
-        </div>
       </div>
     </div>
 
-    <!-- Step 7 -->
+    <!-- Step 8 -->
     <div class="step">
-      <div class="step-dot">7</div>
+      <div class="step-dot">8</div>
       <div class="step-card" style="border-left:3px solid #00b894;">
         <div class="step-header">
           <span class="step-title">Verify Connectivity</span>
@@ -772,7 +723,7 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
           <div style="font-size:13px;color:#6b7b8d;line-height:1.8;padding:12px 16px;background:#0d1117;border-radius:8px;">
             <strong style="color:#c8d6e5;">Customer — Check PSC Endpoint status</strong><br>
             1. Go to <strong style="color:#c8d6e5;">VPC Network &rarr; Private Service Connect &rarr; Connected endpoints</strong><br>
-            2. Find each <strong style="color:#c8d6e5;">poc-srt-01-psc-endpoint</strong> in the list<br>
+            2. Find each <strong style="color:#c8d6e5;">pfc0X-psc-endpoint</strong> in the list<br>
             3. Verify the <strong style="color:#c8d6e5;">Status</strong> column shows <strong style="color:#00b894;">Accepted</strong><br>
             4. Note the <strong style="color:#c8d6e5;">IP address</strong> assigned to each endpoint<br>
             <br>
@@ -780,7 +731,7 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
             1. Open the <strong style="color:#c8d6e5;">LRS Cloud Source dashboard</strong> in Syndicate<br>
             2. Verify each Cloud Source shows stream as <strong style="color:#00b894;">Active</strong><br>
             3. Check SRT statistics show <strong style="color:#00b894;">0% packet loss</strong><br>
-            4. Confirm source IP in LRS shows a <code style="color:#f9ca24;font-size:12px;">10.200.0.x</code> address (Harmonic PSC NAT subnet — confirms SNAT and private path)
+            4. Confirm source IP in LRS shows a <code style="color:#f9ca24;font-size:12px;">10.x.x.x</code> address (PSC NAT subnet — confirms private path)
           </div>
         </div>
 
@@ -789,30 +740,54 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
           <li>SRT encoder shows <strong>Connected</strong> status</li>
           <li>LRS Cloud Source shows stream as <strong>Active</strong></li>
           <li>SRT statistics show <strong>0% packet loss</strong></li>
-          <li>Source IP in LRS shows <code>10.200.0.x</code> (Harmonic PSC NAT subnet — confirms SNAT and private path)</li>
+          <li>Source IP in LRS shows <code>10.x.x.x</code> (PSC NAT subnet — confirms private path)</li>
+          <li>Repeat for all 10 SRT services (PFC01–PFC10)</li>
         </ul>
       </div>
     </div>
 
   </div>
 
-  <!-- PSC vs VPC Peering comparison -->
-  <div class="section-label">PSC vs VPC Peering &mdash; Why PSC?</div>
+  <!-- Approach Comparison -->
+  <div class="section-label">Loopback vs iptables &mdash; Approach Comparison</div>
   <table class="ref-table">
-    <tr><th></th><th>VPC Peering</th><th>Private Service Connect (Endpoint)</th></tr>
-    <tr><td><strong style="color:#c8d6e5;">Network Access</strong></td><td>Full bidirectional access between VPCs</td><td>Controlled — customer connects only to published services</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">Customer Control</strong></td><td>Limited — peer sees entire VPC</td><td>Customer connects to specific service URIs only</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">IP Overlap</strong></td><td>CIDR ranges must not overlap</td><td>No overlap restrictions</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">Egress Cost (same region)</strong></td><td>No charge</td><td>No charge</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">Security</strong></td><td>Firewall rules needed both sides</td><td>Service Attachment accept list + customer firewall rules</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">Per-stream isolation</strong></td><td>No — single shared peering</td><td>Yes — each stream has its own ILB + Service Attachment</td></tr>
-    <tr><td><strong style="color:#c8d6e5;">Setup Complexity</strong></td><td>Simple</td><td>Moderate (ILB + Service Attachment + PSC Endpoint per stream)</td></tr>
+    <tr><th></th><th>iptables (DNAT + SNAT)</th><th>Loopback (this guide)</th></tr>
+    <tr><td><strong style="color:#c8d6e5;">VM config</strong></td><td>iptables DNAT + SNAT rules</td><td>ILB IP added to loopback interface</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">SRT listener</strong></td><td>Stays on <code>0.0.0.0:7086</code> — no change</td><td>Must bind to ILB IP — Syndicate change</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">SNAT rule required</strong></td><td>Yes</td><td><strong style="color:#00b894;">No</strong></td></tr>
+    <tr><td><strong style="color:#c8d6e5;">DNAT rule required</strong></td><td>Yes</td><td><strong style="color:#00b894;">No</strong></td></tr>
+    <tr><td><strong style="color:#c8d6e5;"><code>--can-ip-forward</code></strong></td><td>Required</td><td>Required</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Syndicate app change</strong></td><td>None</td><td>Pass ILB IP as SRT listener bind address</td></tr>
+    <tr><td><strong style="color:#c8d6e5;">Validated end-to-end</strong></td><td>Yes — PF01 (0% packet loss)</td><td>Yes — PF02 (stream confirmed, tcpdump verified)</td></tr>
   </table>
 
   <!-- FAQ -->
   <div class="section-label">Frequently Asked Questions</div>
 
   <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Why is --can-ip-forward required for the loopback approach?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      The ILB IP is assigned to the loopback interface (<code>lo</code>), not the VM's NIC (<code>ens4</code>). When the SRT listener sends responses, the packets leave through <code>ens4</code> with <code>src = ILB IP</code>. GCP's network enforces that packets leaving a NIC must have a source IP matching that NIC's assigned IP. Without <code>--can-ip-forward</code>, GCP blocks these packets and responses carry <code>src = VM NIC IP</code> instead — PSC NAT cannot match the session and drops them. This was confirmed by tcpdump during testing.
+    </div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Is there NAT involved with PSC?</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
+      <strong style="color:#c8d6e5;">From the customer's perspective: no.</strong> The PSC Endpoint gets a private IP from the customer's own subnet. SRT encoders connect to this private IP with no internet NAT or public IP involved.<br><br>
+      Internally, GCP performs <strong style="color:#c8d6e5;">PSC NAT</strong> transparently as traffic crosses the VPC boundary. On the Harmonic LRS VM, the loopback approach handles address translation at the listener level — the SRT listener binds directly to the ILB IP, so responses naturally carry the correct source address. This is entirely Harmonic's implementation concern — the customer does not need to configure anything for it.
+    </div>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
     <span class="arrow">&#9654;</span>
     <span class="toggle-title">Does the customer VPC and LRS VPC need to be in the same region?</span>
     <span class="toggle-hint">click to expand</span>
@@ -825,51 +800,13 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
 
   <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
     <span class="arrow">&#9654;</span>
-    <span class="toggle-title">Is there NAT involved with PSC?</span>
-    <span class="toggle-hint">click to expand</span>
-  </div>
-  <div class="desc-body">
-    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      <strong style="color:#c8d6e5;">From the customer's perspective: no.</strong> The PSC Endpoint gets a private IP from the customer's own subnet. SRT encoders connect to this private IP with no internet NAT or public IP involved.<br><br>
-      Internally, GCP performs <strong style="color:#c8d6e5;">PSC NAT</strong> transparently as traffic crosses the VPC boundary — this is invisible to both sides and has no impact on SRT behaviour. On the Harmonic LRS VM, two iptables rules (DNAT + SNAT) handle address translation at the VM level due to the passthrough nature of the ILB. This is entirely Harmonic's implementation concern — the customer does not need to configure anything for it.
-    </div>
-  </div>
-
-  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-    <span class="arrow">&#9654;</span>
     <span class="toggle-title">Can multiple SRT sources share the same PSC Endpoint?</span>
     <span class="toggle-hint">click to expand</span>
   </div>
   <div class="desc-body">
     <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
       <strong style="color:#c8d6e5;">No — each SRT stream requires its own PSC Endpoint.</strong> Each LRS Cloud Source listens on the same port (7086), so each Cloud Source needs its own private IP — which means its own PSC Endpoint.<br><br>
-      For 10 SRT services, the customer creates <strong style="color:#c8d6e5;">10 PSC Endpoints</strong>, each connected to its own Harmonic Service Attachment. Each endpoint gets a different IP from the customer's subnet (e.g. 10.100.0.2 through 10.100.0.11). An LRS Cloud Source can accept up to <strong style="color:#f9ca24;">2 SRT connections</strong> on the same IP:port, but strictly for <strong style="color:#f9ca24;">redundancy</strong> (primary + backup encoder for the same stream).
-    </div>
-  </div>
-
-  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-    <span class="arrow">&#9654;</span>
-    <span class="toggle-title">What happens if the customer adds more SRT services later?</span>
-    <span class="toggle-hint">click to expand</span>
-  </div>
-  <div class="desc-body">
-    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      Harmonic provisions a <strong style="color:#c8d6e5;">new LRS Cloud Source</strong>, creates a new ILB + Service Attachment, and shares the new Service Attachment URI. The customer creates <strong style="color:#c8d6e5;">one new PSC Endpoint</strong> and receives a new private IP. The customer's VPC, subnet, and firewall rules are <strong style="color:#c8d6e5;">unchanged</strong> — no new network infrastructure is needed on the customer side.
-    </div>
-  </div>
-
-  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-    <span class="arrow">&#9654;</span>
-    <span class="toggle-title">Can the customer bypass PSC by using Direct Connect to push SRT directly to LRS?</span>
-    <span class="toggle-hint">click to expand</span>
-  </div>
-  <div class="desc-body">
-    <div style="font-size:13px;color:#6b7b8d;line-height:1.7;padding:12px 16px;background:#0d1117;border-radius:8px;border-left:3px solid #4ecdc4;">
-      <strong style="color:#c8d6e5;">No.</strong> Google Cloud Interconnect (Direct Connect) terminates in the <strong style="color:#c8d6e5;">customer's own GCP VPC</strong> — it cannot connect directly to Harmonic's LRS VPC. The customer's Direct Connect creates a private link from the headend into the customer's own GCP project only — it does not extend into any other organisation's VPC.<br><br>
-      Since LRS runs in <strong style="color:#6c8cff;">Harmonic's dedicated VPC</strong> (a separate GCP project), the SRT traffic must still cross a VPC boundary. There are only two options for this:<br>
-      &bull; <strong style="color:#6c8cff;">VPC Peering</strong> — bridges the entire customer VPC with the entire LRS VPC. Simple but gives broad mutual visibility.<br>
-      &bull; <strong style="color:#00b894;">PSC (Private Service Connect)</strong> — Harmonic publishes only specific services; the customer connects only to those. Neither side sees the other's full network.<br><br>
-      <strong style="color:#c8d6e5;">In short:</strong> Direct Connect solves the <em>headend-to-GCP</em> problem. PSC solves the <em>customer-VPC-to-LRS-VPC</em> problem. Both are needed.
+      For 10 SRT services, the customer creates <strong style="color:#c8d6e5;">10 PSC Endpoints</strong>, each connected to its own Harmonic Service Attachment. Each endpoint gets a different IP from the customer's subnet (e.g. 10.100.0.2 through 10.100.0.11).
     </div>
   </div>
 
@@ -895,22 +832,18 @@ srt://<span class="placeholder">&lt;psc-endpoint-ip&gt;</span>:<span class="valu
     </tr>
     <tr>
       <td>SRT Connection String</td>
-      <td><code>srt://{PSC_ENDPOINT_IP}:7086?mode=caller&amp;passphrase={PASSPHRASE}&amp;pbkeylen=16</code> (primary)<br><code>srt://{PSC_ENDPOINT_IP}:7090?mode=caller&amp;passphrase={PASSPHRASE}&amp;pbkeylen=16</code> (backup)</td>
+      <td><code>srt://{PSC_ENDPOINT_IP}:7086?mode=caller</code></td>
     </tr>
     <tr>
       <td>Google Docs: PSC Published Services</td>
       <td><a href="https://cloud.google.com/vpc/docs/private-service-connect#service-attachments" target="_blank" style="color:#4ecdc4;">cloud.google.com/vpc/docs/private-service-connect#service-attachments</a></td>
-    </tr>
-    <tr>
-      <td>Google Docs: PSC Endpoints</td>
-      <td><a href="https://cloud.google.com/vpc/docs/private-service-connect#endpoints" target="_blank" style="color:#4ecdc4;">cloud.google.com/vpc/docs/private-service-connect#endpoints</a></td>
     </tr>
   </table>
 
 </div>
 
 <div class="footer">
-  LRS via Private Service Connect &mdash; Customer Setup Guide (Endpoint model)
+  LRS via Private Service Connect &mdash; Loopback Setup Guide (Endpoint model)
 </div>
 
 </body>
