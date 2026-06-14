@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Log Analytics &amp; KQL &mdash; Deep Dive (LRS DatapathStats)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+  .header .back-link { font-size: 13px; color: #4a5568; text-decoration: none; }
+  .header .back-link:hover { color: #4ecdc4; }
+
+  .content { max-width: 1100px; margin: 0 auto; padding: 30px; }
+
+  .section-label { font-size: 12px; color: #6b7b8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 32px; }
+
+  /* collapsible */
+  .desc-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 4px; user-select: none; }
+  .desc-toggle:hover { background: #111620; }
+  .desc-toggle .arrow { font-size: 10px; color: #4ecdc4; transition: transform 0.2s; }
+  .desc-toggle.open .arrow { transform: rotate(90deg); }
+  .desc-toggle .toggle-title { font-size: 13px; font-weight: 600; color: #4ecdc4; }
+  .desc-toggle .toggle-hint { font-size: 11px; color: #4a5568; margin-left: auto; }
+  .desc-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .desc-body.open { max-height: 6000px; }
+
+  .intro { font-size: 14px; color: #6b7b8d; line-height: 1.8; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 24px; }
+  .intro strong { color: #c8d6e5; }
+  .intro code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+
+  .prose { font-size: 13px; color: #6b7b8d; line-height: 1.8; }
+  .prose strong { color: #c8d6e5; }
+  .prose code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+
+  /* concept cards */
+  .concept { background: #111620; border: 1px solid #1e2738; border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+  .concept-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .concept-op { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 15px; font-weight: 700; color: #6c8cff; }
+  .concept-title { font-size: 14px; font-weight: 700; color: #e8ecf1; }
+  .concept-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; margin-left: auto; }
+  .tag-generic { color: #4ecdc4; background: #0d1f1e; border: 1px solid #1a4040; }
+  .tag-lrs { color: #f9ca24; background: #1f1a0a; border: 1px solid #3d2e0a; }
+  .concept-desc { font-size: 13px; color: #6b7b8d; line-height: 1.7; margin-bottom: 6px; }
+  .concept-desc strong { color: #c8d6e5; }
+  .concept-desc code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .grounded-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #f9ca24; margin: 12px 0 2px; display: flex; align-items: center; gap: 6px; }
+  .grounded-label::before { content: '\25B8'; color: #f9ca24; }
+
+  /* code blocks */
+  .code-block { background: #0d1117; border: 1px solid #1e2738; border-radius: 8px; padding: 14px 16px; margin: 8px 0; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; line-height: 1.7; color: #c8d6e5; overflow-x: auto; white-space: pre; }
+  .code-block.generic { border-left: 3px solid #1a4040; }
+  .code-block.lrs { border-left: 3px solid #3d2e0a; }
+  .code-block .comment { color: #4a5568; }
+  .code-block .pipe { color: #4a5568; }
+  .code-block .kw { color: #6c8cff; }
+  .code-block .table { color: #f9ca24; font-weight: 600; }
+  .code-block .value { color: #4ecdc4; }
+  .code-block .placeholder { color: #f9ca24; }
+  .code-block .out { color: #6b7b8d; }
+
+  /* result preview */
+  .result-grid { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 11px; color: #8899aa; background: #0a0e17; border: 1px dashed #2a3040; border-radius: 6px; padding: 10px 14px; margin: 6px 0 0; overflow-x: auto; white-space: pre; line-height: 1.7; }
+  .result-grid .rh { color: #6c8cff; }
+
+  /* info boxes */
+  .info-box { font-size: 13px; color: #6b7b8d; line-height: 1.6; padding: 12px 16px; border-radius: 8px; margin: 10px 0; border: 1px solid; }
+  .info-box code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .info-note { background: #121630; border-color: #1e3a5f; }
+  .info-note strong { color: #6c8cff; }
+  .info-note code { color: #6c8cff; }
+  .info-warn { background: #1f1a0a; border-color: #3d2e0a; }
+  .info-warn strong { color: #f9ca24; }
+  .info-warn code { color: #f9ca24; }
+  .info-success { background: #0a1f1a; border-color: #0a3d2e; }
+  .info-success strong { color: #00b894; }
+  .info-success code { color: #00b894; }
+
+  /* table */
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  .ref-table th { text-align: left; padding: 8px 12px; background: #111620; color: #6b7b8d; font-weight: 700; border-bottom: 1px solid #1e2738; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ref-table td { padding: 8px 12px; border-bottom: 1px solid #1e2738; color: #c8d6e5; vertical-align: top; }
+  .ref-table tr:last-child td { border-bottom: none; }
+  .ref-table code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .ref-table .op { color: #6c8cff; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; white-space: nowrap; }
+
+  /* pipe-flow diagram */
+  .pipeflow { display: flex; flex-direction: column; gap: 0; margin: 12px 0; }
+  .pf-row { display: flex; align-items: stretch; gap: 12px; }
+  .pf-stage { flex: 1; background: #0d1117; border: 1px solid #1e2738; border-left: 3px solid #6c8cff; border-radius: 8px; padding: 10px 14px; }
+  .pf-stage .pf-op { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #6c8cff; font-weight: 700; }
+  .pf-stage .pf-what { font-size: 11px; color: #6b7b8d; margin-top: 2px; }
+  .pf-arrow { text-align: center; color: #2a3040; font-size: 18px; padding: 2px 0; }
+
+  /* cross-link to the troubleshooting guide */
+  .guide-ref { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #f9ca24; text-decoration: none; background: #1f1a0a; border: 1px solid #3d2e0a; border-radius: 6px; padding: 3px 10px; }
+  .guide-ref:hover { background: #2a2410; border-color: #5c4410; }
+  .guide-ref .gr-sub { color: #6b7b8d; font-weight: 400; }
+
+  .footer { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 16px 30px; border-top: 1px solid #2a3040; text-align: center; font-size: 12px; color: #4a5568; margin-top: 40px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back-link">&larr; Back</a>
+  <h1><span>Azure Log Analytics &amp; KQL</span> &mdash; Deep Dive</h1>
+</div>
+
+<div class="content">
+
+  <!-- Overview -->
+  <div class="intro">
+    A from-scratch guide to <strong>Azure Log Analytics</strong> and the <strong>Kusto Query Language (KQL)</strong> &mdash; the tools used to investigate Harmonic LRS stream health.
+    <br><br>
+    Every concept is taught generically (the skill transfers to any Log Analytics table), then immediately <strong>grounded in a real LRS example</strong> against the <code>DatapathStats_CL</code> table. Green = generic skill; amber = LRS-grounded example.
+    <br><br>
+    Once you're comfortable here, the companion <strong>LRS Troubleshooting Guide</strong> walks a real investigation end to end.
+    <a class="guide-ref" href="lrs-troubleshooting-guide.html" style="margin-top:10px;">&#9654; LRS Troubleshooting Guide <span class="gr-sub">&mdash; the 10-query Globo investigation</span></a>
+  </div>
+
+  <!-- 1. Log Analytics orientation -->
+  <div class="section-label">1 &mdash; Azure Log Analytics: Orientation</div>
+  <div class="prose" style="margin-bottom:12px;">
+    Before any query, it helps to know where you are. <strong>Azure Log Analytics</strong> is the query layer over a <strong>Log Analytics workspace</strong> &mdash; a container that stores log and metric data in <strong>tables</strong>. You write KQL in the <strong>Logs blade</strong> and get back a results grid (or a chart).
+  </div>
+
+  <table class="ref-table">
+    <tr><th>Concept</th><th>What it is</th></tr>
+    <tr><td class="op">Workspace</td><td>The data container. For LRS this is <code>HarmonicLRSLogAnalytics</code>. Everything you query lives inside one workspace.</td></tr>
+    <tr><td class="op">Table</td><td>A named, schema'd stream of rows (e.g. <code>DatapathStats_CL</code>). The <code>_CL</code> suffix means a <strong>Custom Log</strong> table; <code>_s</code>/<code>_d</code>/<code>_t</code>/<code>_b</code> column suffixes mean string/real/datetime/bool.</td></tr>
+    <tr><td class="op">Logs blade</td><td>The query editor in the Azure portal. Paste KQL, press <strong>Run</strong> (or <kbd>Shift</kbd>+<kbd>Enter</kbd>).</td></tr>
+    <tr><td class="op">Scope</td><td>What the query runs against &mdash; a workspace, a resource, or a resource group. Set it at the top-left before running.</td></tr>
+    <tr><td class="op">Time range</td><td>The portal time picker. It <em>adds an implicit time filter</em> on <code>TimeGenerated</code>. If your query has its own <code>where TimeGenerated between (...)</code>, set the picker to <strong>Set in query</strong> so the two don't fight.</td></tr>
+    <tr><td class="op">Results vs Chart</td><td>Output shows as a table by default. Add <code>| render timechart</code> (or switch the Chart tab) to visualise.</td></tr>
+    <tr><td class="op">Save / Pin</td><td>Save a query to the workspace for reuse, or pin a chart to an Azure dashboard for monitoring.</td></tr>
+  </table>
+
+  <div class="info-box info-warn">
+    <strong>The time-picker gotcha.</strong> A query can return "no results" simply because the portal time range is narrower than your <code>where TimeGenerated</code> clause &mdash; or wider, masking it. When a query has an explicit time filter, set the picker to <strong>Set in query</strong>. Log Analytics also has a <strong>retention</strong> limit: data older than the workspace's retention period is gone.
+  </div>
+
+  <!-- 2. The KQL mental model -->
+  <div class="section-label">2 &mdash; The KQL Mental Model: a Pipeline of Tables</div>
+  <div class="prose" style="margin-bottom:12px;">
+    KQL reads <strong>top to bottom, left to right</strong>. You start with a table and pass it through a series of operators, each separated by a pipe <code>|</code>. <strong>Every operator takes a table in and returns a table out</strong> &mdash; so the output of one step is the input to the next. There is no <code>SELECT &hellip; FROM &hellip; WHERE</code> ordering to memorise; you just describe the transformation in the order it happens.
+  </div>
+
+  <div class="pipeflow">
+    <div class="pf-row"><div class="pf-stage"><div class="pf-op">DatapathStats_CL</div><div class="pf-what">Start with the whole table (every row, every column)</div></div></div>
+    <div class="pf-arrow">&#9660;</div>
+    <div class="pf-row"><div class="pf-stage"><div class="pf-op">| where &hellip;</div><div class="pf-what">Keep only the rows you care about (fewer rows)</div></div></div>
+    <div class="pf-arrow">&#9660;</div>
+    <div class="pf-row"><div class="pf-stage"><div class="pf-op">| summarize &hellip; by &hellip;</div><div class="pf-what">Aggregate rows into groups (fewer rows, new columns)</div></div></div>
+    <div class="pf-arrow">&#9660;</div>
+    <div class="pf-row"><div class="pf-stage"><div class="pf-op">| extend &hellip;</div><div class="pf-what">Add a calculated column (e.g. a percentage)</div></div></div>
+    <div class="pf-arrow">&#9660;</div>
+    <div class="pf-row"><div class="pf-stage"><div class="pf-op">| sort by &hellip;</div><div class="pf-what">Order the result, then render or read it</div></div></div>
+  </div>
+
+  <div class="info-box info-note">
+    <strong>Read it as a sentence:</strong> "Take <code>DatapathStats_CL</code>, keep Globo rows in the match window, total the dropped packets per stream, work out the drop percentage, and sort worst-first." That sentence <em>is</em> the query &mdash; in that order.
+  </div>
+
+  <!-- 3. Filtering -->
+  <div class="section-label">3 &mdash; Filtering Rows: <code style="text-transform:none;letter-spacing:0;">where</code></div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">where</span>
+      <span class="concept-title">Keep only matching rows</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>where</code> filters the table down to rows where a condition is true. Chain multiple <code>where</code>s (or combine with <code>and</code>/<code>or</code>) &mdash; each one runs on the output of the previous. <strong>Filter early and filter hard:</strong> the less data flows downstream, the faster and cheaper the query.
+    </div>
+    <div class="code-block generic"><span class="placeholder">SomeTable</span>
+<span class="pipe">|</span> <span class="kw">where</span> Status == <span class="value">"error"</span>
+<span class="pipe">|</span> <span class="kw">where</span> Region <span class="kw">in</span> (<span class="value">"eu-west"</span>, <span class="value">"us-east"</span>)
+<span class="pipe">|</span> <span class="kw">where</span> Timestamp &gt; <span class="kw">ago</span>(1h)</div>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL</div>
+    <div class="code-block lrs"><span class="comment">// Globo's ingress rows in the match window only</span>
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">where</span> recv_pkt_dropped_d &gt; 0</div>
+
+    <div class="info-box info-note" style="margin-top:12px;">
+      <strong>String matching &mdash; pick the right operator:</strong>
+      <table class="ref-table" style="margin-top:6px;">
+        <tr><th>Operator</th><th>Meaning</th><th>Example</th></tr>
+        <tr><td class="op">==</td><td>Exact, case-sensitive equality</td><td><code>name_s == "LL06 - PSC"</code></td></tr>
+        <tr><td class="op">=~</td><td>Exact, case-<em>insensitive</em></td><td><code>region_s =~ "SOUTHAMERICA-EAST1-B"</code></td></tr>
+        <tr><td class="op">has</td><td>Whole-word match (fast, indexed)</td><td><code>name_s has "LL06"</code></td></tr>
+        <tr><td class="op">contains</td><td>Substring match (slower, not indexed)</td><td><code>id_s contains "fa6446"</code></td></tr>
+        <tr><td class="op">in</td><td>Matches any value in a list</td><td><code>name_s in ("LL06 - PSC","LL07 - PSC")</code></td></tr>
+        <tr><td class="op">startswith</td><td>Prefix match</td><td><code>id_s startswith "ingress-"</code></td></tr>
+      </table>
+      Prefer <code>has</code> over <code>contains</code> when matching whole words &mdash; it uses the term index and is much faster on large tables.
+    </div>
+  </div>
+
+  <!-- 4. Shaping columns -->
+  <div class="section-label">4 &mdash; Shaping Columns: <code style="text-transform:none;letter-spacing:0;">project</code> &amp; <code style="text-transform:none;letter-spacing:0;">extend</code></div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">project</span>
+      <span class="concept-title">Choose / rename / reorder columns</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>project</code> keeps only the columns you list (and sets their order). <code>project-away</code> does the inverse &mdash; drop a few, keep the rest. Use it to cut a wide table down to a readable result.
+    </div>
+    <div class="code-block generic"><span class="placeholder">SomeTable</span> <span class="pipe">|</span> <span class="kw">project</span> Time = Timestamp, User, Action   <span class="comment">// keep 3 cols, rename one</span>
+<span class="placeholder">SomeTable</span> <span class="pipe">|</span> <span class="kw">project-away</span> RawData, _ResourceId       <span class="comment">// drop noise, keep the rest</span></div>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL</div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">has</span> <span class="value">"LL06"</span>
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, name_s, upstream_role_s,
+          recv_pkt_loss_d, recv_pkt_dropped_d, recv_bitrate_d</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">extend</span>
+      <span class="concept-title">Add a calculated column</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>extend</code> appends a new column computed from existing ones &mdash; arithmetic, string functions, conditionals. The original columns stay. This is how you turn raw counters into a meaningful metric like a percentage.
+    </div>
+    <div class="code-block generic"><span class="placeholder">SomeTable</span> <span class="pipe">|</span> <span class="kw">extend</span> DurationSec = DurationMs / 1000.0</div>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; counts to a percentage</div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">summarize</span> Recv = <span class="kw">sum</span>(recv_pkt_d), RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d) <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span> RecvDropPct = <span class="kw">round</span>(100.0 * RecvDropped / Recv, 4)</div>
+    <div class="info-box info-warn" style="margin-top:8px;">
+      <strong>Watch integer division.</strong> Multiply by <code>100.0</code> (not <code>100</code>) to force floating-point math &mdash; otherwise <code>5 / 1000</code> returns <code>0</code>. <code>round(x, 4)</code> trims to 4 decimal places.
+    </div>
+  </div>
+
+  <!-- 5. Aggregation -->
+  <div class="section-label">5 &mdash; Aggregation: <code style="text-transform:none;letter-spacing:0;">summarize &hellip; by</code></div>
+  <div class="prose" style="margin-bottom:12px;">
+    This is the heart of KQL. <code>summarize</code> collapses many rows into <strong>one row per group</strong>, computing aggregate values. The <code>by</code> clause names the grouping key(s). Without <code>by</code>, you get a single total row.
+  </div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">summarize</span>
+      <span class="concept-title">Group rows and compute aggregates</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      Pattern: <code>summarize &lt;NewCol&gt; = &lt;agg&gt;(&lt;col&gt;), &hellip; by &lt;group cols&gt;</code>. Common aggregate functions:
+    </div>
+    <table class="ref-table">
+      <tr><th>Function</th><th>Returns</th></tr>
+      <tr><td class="op">sum(x)</td><td>Total of <code>x</code> across the group</td></tr>
+      <tr><td class="op">avg(x)</td><td>Mean of <code>x</code></td></tr>
+      <tr><td class="op">max(x) / min(x)</td><td>Largest / smallest value</td></tr>
+      <tr><td class="op">count()</td><td>Number of rows in the group</td></tr>
+      <tr><td class="op">dcount(x)</td><td>Distinct (unique) count of <code>x</code></td></tr>
+      <tr><td class="op">countif(pred)</td><td>Count of rows where a condition is true</td></tr>
+      <tr><td class="op">arg_max(x, *)</td><td>The whole row where <code>x</code> is largest</td></tr>
+    </table>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; per-stream health totals</div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    Sent        = <span class="kw">sum</span>(snd_pkt_d),
+    Recv        = <span class="kw">sum</span>(recv_pkt_d),
+    RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d),
+    Samples     = <span class="kw">count</span>(),
+    Legs        = <span class="kw">dcount</span>(socket_d)
+    <span class="kw">by</span> name_s</div>
+    <div class="result-grid"><span class="rh">name_s        Sent       Recv       RecvDropped  Samples  Legs</span>
+LL06 - PSC    51,200,400 51,180,900      23,267     600     2
+LL07 - PSC    50,990,100 50,975,800      14,056     600     2
+LL08 - PSC    51,010,700 51,010,700           0     600     2</div>
+    <div class="info-box info-note" style="margin-top:8px;">
+      <strong>Group by more than one key.</strong> <code>by name_s, upstream_role_s</code> gives one row per <em>leg</em> per stream &mdash; the grouping that separates primary from backup. <code>by bin(TimeGenerated, 1m), name_s</code> groups into per-minute, per-stream buckets (next section).
+    </div>
+  </div>
+
+  <!-- 6. Time series -->
+  <div class="section-label">6 &mdash; Time Series: <code style="text-transform:none;letter-spacing:0;">bin()</code>, <code style="text-transform:none;letter-spacing:0;">ago()</code> &amp; <code style="text-transform:none;letter-spacing:0;">render</code></div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">bin()</span>
+      <span class="concept-title">Bucket a timestamp into fixed intervals</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>bin(TimeGenerated, 1m)</code> rounds each timestamp down to the nearest minute, so rows in the same minute share a value &mdash; the standard way to build a time series with <code>summarize</code>. Use <code>5m</code>, <code>1h</code>, <code>1d</code> etc. for coarser buckets. Time literals: <code>datetime(2026-06-11T18:25:00Z)</code> for absolute, <code>ago(2h)</code> / <code>now()</code> for relative.
+    </div>
+    <div class="code-block generic"><span class="placeholder">SomeTable</span>
+<span class="pipe">|</span> <span class="kw">where</span> Timestamp &gt; <span class="kw">ago</span>(6h)
+<span class="pipe">|</span> <span class="kw">summarize</span> Errors = <span class="kw">count</span>() <span class="kw">by</span> <span class="kw">bin</span>(Timestamp, 5m)
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; drops per minute, per stream</div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span> Dropped = <span class="kw">sum</span>(recv_pkt_dropped_d) <span class="kw">by</span> <span class="kw">bin</span>(TimeGenerated, 1m), name_s
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+    <div class="info-box info-success" style="margin-top:8px;">
+      <strong>Why this matters for LRS:</strong> binning by minute is exactly how the Globo investigation found the drops were confined to a <strong>3-minute window (18:25&ndash;18:28 UTC)</strong> instead of spread across the match &mdash; the single result that killed the "match-load" theory.
+    </div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">render</span>
+      <span class="concept-title">Visualise the result</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>render</code> turns a result into a chart. <code>timechart</code> expects a datetime first column; <code>columnchart</code>/<code>barchart</code>/<code>piechart</code> suit categorical data. When you <code>summarize &hellip; by bin(t,&hellip;), Category</code>, each category becomes its own line.
+    </div>
+    <div class="code-block lrs"><span class="comment">// Bitrate per stream over time &mdash; one line per stream</span>
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">summarize</span> AvgBitrate = <span class="kw">avg</span>(recv_bitrate_d) <span class="kw">by</span> <span class="kw">bin</span>(TimeGenerated, 1m), name_s
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+  </div>
+
+  <!-- 7. Sort / limit -->
+  <div class="section-label">7 &mdash; Ordering &amp; Limiting: <code style="text-transform:none;letter-spacing:0;">sort</code>, <code style="text-transform:none;letter-spacing:0;">top</code>, <code style="text-transform:none;letter-spacing:0;">take</code></div>
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">sort / top / take</span>
+      <span class="concept-title">Order the result and cap the rows</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <table class="ref-table">
+      <tr><th>Operator</th><th>What it does</th></tr>
+      <tr><td class="op">sort by X desc</td><td>Order rows by <code>X</code> (default is descending; add <code>asc</code> for ascending)</td></tr>
+      <tr><td class="op">top 10 by X</td><td>Sort by <code>X</code> and keep the first 10 &mdash; "worst/biggest N"</td></tr>
+      <tr><td class="op">take 100</td><td>Grab <em>any</em> 100 rows (no order guarantee) &mdash; for a quick peek at a table</td></tr>
+      <tr><td class="op">distinct A, B</td><td>Unique combinations of the listed columns</td></tr>
+    </table>
+
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; worst streams first, and what they share</div>
+    <div class="code-block lrs"><span class="comment">// Rank streams by unrecovered drops</span>
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">summarize</span> RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d) <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">top</span> 5 <span class="kw">by</span> RecvDropped <span class="kw">desc</span>
+
+<span class="comment">// What do the affected streams have in common?</span>
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">in</span> (<span class="value">"LL06 - PSC"</span>, <span class="value">"LL07 - PSC"</span>, <span class="value">"LL08 - PSC"</span>)
+<span class="pipe">|</span> <span class="kw">distinct</span> name_s, region_s, upstream_role_s, socket_d</div>
+  </div>
+
+  <!-- 8. Power tools -->
+  <div class="section-label">8 &mdash; Power Tools: <code style="text-transform:none;letter-spacing:0;">let</code>, conditionals, <code style="text-transform:none;letter-spacing:0;">getschema</code></div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">let</span>
+      <span class="concept-title">Name a value, expression, or sub-table</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>let</code> declares a reusable binding at the top of a query &mdash; a scalar, a list, or even a whole sub-query. It removes repetition (one place to change the account or time window) and makes long queries readable.
+    </div>
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; parameterise the investigation</div>
+    <div class="code-block lrs"><span class="kw">let</span> acct    = <span class="value">"globocomuni"</span>;
+<span class="kw">let</span> tStart  = <span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>);
+<span class="kw">let</span> tEnd    = <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>);
+<span class="kw">let</span> streams = <span class="kw">dynamic</span>([<span class="value">"LL06 - PSC"</span>, <span class="value">"LL07 - PSC"</span>, <span class="value">"LL08 - PSC"</span>]);
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> acct
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (tStart .. tEnd)
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">in</span> (streams)
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, name_s, upstream_role_s, recv_pkt_dropped_d</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">iff() / case()</span>
+      <span class="concept-title">Conditional (computed) columns</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>iff(condition, ifTrue, ifFalse)</code> is an inline if. <code>case(c1, v1, c2, v2, &hellip;, default)</code> handles multiple branches. Pair with <code>extend</code> to label rows.
+    </div>
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; flag each leg's health</div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">has</span> <span class="value">"LL06"</span>
+<span class="pipe">|</span> <span class="kw">extend</span> Health = <span class="kw">case</span>(
+      recv_pkt_dropped_d &gt; 0, <span class="value">"DROPS"</span>,
+      recv_pkt_loss_d   &gt; 0, <span class="value">"loss (recovered)"</span>,
+                              <span class="value">"clean"</span>)
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, upstream_role_s, recv_bitrate_d, Health</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">getschema</span>
+      <span class="concept-title">Discover a table's columns</span>
+      <span class="concept-tag tag-lrs">LRS-handy</span>
+    </div>
+    <div class="concept-desc">
+      When a field name errors (or you're new to a table), <code>getschema</code> lists every column and its type. The fastest way to confirm an LRS field name and its <code>_s</code>/<code>_d</code> suffix.
+    </div>
+    <div class="code-block lrs"><span class="table">DatapathStats_CL</span> <span class="pipe">|</span> <span class="kw">getschema</span> <span class="pipe">|</span> <span class="kw">project</span> ColumnName, ColumnType <span class="pipe">|</span> <span class="kw">sort by</span> ColumnName <span class="kw">asc</span></div>
+  </div>
+
+  <!-- 9. Joins (brief) -->
+  <div class="section-label">9 &mdash; Combining Tables: <code style="text-transform:none;letter-spacing:0;">join</code> &amp; <code style="text-transform:none;letter-spacing:0;">union</code> (brief)</div>
+  <div class="concept">
+    <div class="concept-header">
+      <span class="concept-op">join / union</span>
+      <span class="concept-title">Correlate or stack multiple tables</span>
+      <span class="concept-tag tag-generic">Generic</span>
+    </div>
+    <div class="concept-desc">
+      <code>join</code> matches rows from two tables on a shared key (like SQL joins: <code>inner</code>, <code>leftouter</code>, etc.). <code>union</code> stacks rows from several tables/queries into one result. For LRS, the <code>DatapathStats_CL</code> table is usually self-sufficient &mdash; but a <code>self-join</code> can line up a stream's two legs side by side, and <code>union</code> is useful if stats land in more than one table.
+    </div>
+    <div class="grounded-label">Grounded in DatapathStats_CL &mdash; baseline vs. window via a self-join</div>
+    <div class="code-block lrs"><span class="kw">let</span> windowStats =
+    <span class="table">DatapathStats_CL</span>
+    <span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>))
+    <span class="pipe">|</span> <span class="kw">summarize</span> WindowDropped = <span class="kw">sum</span>(recv_pkt_dropped_d) <span class="kw">by</span> name_s;
+<span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span> TotalDropped = <span class="kw">sum</span>(recv_pkt_dropped_d) <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">join</span> <span class="kw">kind=</span><span class="value">inner</span> windowStats <span class="kw">on</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span> PctInWindow = <span class="kw">round</span>(100.0 * WindowDropped / TotalDropped, 1)</div>
+    <div class="info-box info-note" style="margin-top:8px;">
+      <strong>Reads as:</strong> total drops per stream over the whole evening, joined to drops in the tight window &mdash; <code>PctInWindow</code> then shows what fraction of all drops happened in those 3 minutes (near 100% for LL06/LL07).
+    </div>
+  </div>
+
+  <!-- 10. Putting it together -->
+  <div class="section-label">10 &mdash; Putting It Together</div>
+  <div class="prose" style="margin-bottom:12px;">
+    Every operator above, in one query &mdash; the "run this first" health summary from the troubleshooting guide. Read it top to bottom as a sentence:
+  </div>
+  <div class="code-block lrs"><span class="kw">let</span> acct = <span class="value">"globocomuni"</span>;
+<span class="table">DatapathStats_CL</span>                                          <span class="comment">// 1. start with the table</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> acct                          <span class="comment">// 2. filter to the customer</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated &gt; <span class="kw">ago</span>(7d)                          <span class="comment">// 3. filter to recent data</span>
+<span class="pipe">|</span> <span class="kw">summarize</span>                                              <span class="comment">// 4. aggregate per stream</span>
+    Sent        = <span class="kw">sum</span>(snd_pkt_d),
+    Recv        = <span class="kw">sum</span>(recv_pkt_d),
+    SendDropped = <span class="kw">sum</span>(snd_pkt_dropped_d),
+    RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d)
+    <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span>                                                 <span class="comment">// 5. derive percentages</span>
+    RecvDropPct = <span class="kw">round</span>(100.0 * RecvDropped / Recv, 4),
+    SendDropPct = <span class="kw">round</span>(100.0 * SendDropped / Sent, 4)
+<span class="pipe">|</span> <span class="kw">sort by</span> RecvDropPct <span class="kw">desc</span>                            <span class="comment">// 6. worst first</span></div>
+  <a class="guide-ref" href="lrs-troubleshooting-guide.html" style="margin-top:12px;">&#9654; Continue to the LRS Troubleshooting Guide <span class="gr-sub">&mdash; these skills applied to a real investigation</span></a>
+
+  <!-- Cheat sheet -->
+  <div class="section-label">KQL Cheat Sheet</div>
+  <table class="ref-table">
+    <tr><th>Operator / function</th><th>What it does</th></tr>
+    <tr><td class="op">where</td><td>Keep rows matching a condition</td></tr>
+    <tr><td class="op">project / project-away</td><td>Keep / drop specific columns</td></tr>
+    <tr><td class="op">extend</td><td>Add a calculated column</td></tr>
+    <tr><td class="op">summarize &hellip; by</td><td>Group rows and aggregate</td></tr>
+    <tr><td class="op">sum / avg / max / min</td><td>Aggregate functions</td></tr>
+    <tr><td class="op">count / dcount / countif</td><td>Row count / distinct count / conditional count</td></tr>
+    <tr><td class="op">bin(t, 1m)</td><td>Bucket a timestamp into intervals</td></tr>
+    <tr><td class="op">render timechart</td><td>Plot a time series</td></tr>
+    <tr><td class="op">sort by / top N by</td><td>Order rows / keep biggest N</td></tr>
+    <tr><td class="op">take N</td><td>Quick sample of N rows</td></tr>
+    <tr><td class="op">distinct</td><td>Unique combinations of columns</td></tr>
+    <tr><td class="op">let</td><td>Name a value, list, or sub-query</td></tr>
+    <tr><td class="op">iff() / case()</td><td>Conditional column values</td></tr>
+    <tr><td class="op">join / union</td><td>Correlate / stack tables</td></tr>
+    <tr><td class="op">getschema</td><td>List a table's columns and types</td></tr>
+    <tr><td class="op">has / contains / in / startswith</td><td>String matching (prefer <code>has</code> for words)</td></tr>
+    <tr><td class="op">ago() / now() / datetime()</td><td>Relative / current / absolute time literals</td></tr>
+  </table>
+
+</div>
+
+<div class="footer">
+  Azure Log Analytics &amp; KQL Deep Dive &mdash; grounded in Harmonic LRS DatapathStats_CL
+</div>
+
+</body>
+</html>

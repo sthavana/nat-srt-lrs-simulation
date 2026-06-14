@@ -137,18 +137,98 @@
 
 <div class="content">
 
-  <!-- Introduction -->
-  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
-    <span class="arrow">&#9654;</span>
-    <span class="toggle-title">About These Simulations</span>
-    <span class="toggle-hint">click to expand</span>
-  </div>
-  <div class="desc-body">
-    <div class="sim-desc" style="margin-bottom:24px;">
-      These interactive simulations explain the protocols behind <strong>live video transport</strong> in the VOS 360 / LRS pipeline. An <strong>SRT source</strong> pushes compressed video (H.264/H.265) over the public internet into an <strong>LRS Cloud Source</strong> (ingress), where the live feed is received, buffered, and recovered. From there, <strong>LRS</strong> routes the stream directly to a <strong>VOS 360</strong> cluster for transcoding &mdash; or via a <strong>Cloud Edge</strong> (egress) when the cluster is in a different GCP region.
-      <br><br>
-      Each simulation lets you manipulate network conditions and watch protocol behavior in real time. The goal: <strong>understand NAT traversal on the first hop, why TCP isn't suitable for live video, and how SRT delivers broadcast-quality streams over unpredictable networks.</strong>
+
+  <!-- Learning Path -->
+  <div class="section-label" style="margin-top:8px;">Recommended Learning Path</div>
+  <div class="path-bar">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-title">TCP</div>
+      <div class="step-layer">Layer 4 &mdash; Transport</div>
+      <div class="step-q">"Why not just use TCP for video transport?"</div>
     </div>
+    <div class="step-arrow">&#10132;</div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-title">SRT</div>
+      <div class="step-layer">Layer 4 &mdash; over UDP</div>
+      <div class="step-q">"How SRT delivers broadcast-quality video"</div>
+    </div>
+    <div class="step-arrow">&#10132;</div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-title">NAT / LRS</div>
+      <div class="step-layer">Layer 3 &mdash; Network</div>
+      <div class="step-q">"How does SRT reach LRS through NAT?"</div>
+    </div>
+  </div>
+
+  <!-- Simulation Cards -->
+  <div class="section-label">Interactive Simulations</div>
+  <div class="sim-cards">
+
+    <a class="sim-card" href="tcp-simulation.html" style="border-left: 3px solid #6c8cff;">
+      <div class="badge" style="color:#6c8cff;">Layer 4 &mdash; Transport</div>
+      <div class="card-title">TCP Fundamentals</div>
+      <div class="card-desc">Why TCP's reliability model breaks live video &mdash; head-of-line blocking, retransmission delays, congestion backoff. Then see TCP vs UDP side-by-side.</div>
+      <div class="card-tabs"><strong>5 tabs:</strong> 3-Way Handshake &bull; Transmission &amp; ACK &bull; Retransmission &bull; SACK &amp; Limitations &bull; TCP vs UDP</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+    <a class="sim-card" href="srt-simulation.html" style="border-left: 3px solid #00b894;">
+      <div class="badge" style="color:#00b894;">Layer 4 &mdash; Transport (over UDP)</div>
+      <div class="card-title">SRT Protocol</div>
+      <div class="card-desc">How SRT delivers broadcast-quality video: timestamp-based delivery (TSBPD), NAK-based retransmission (ARQ), and clock drift correction.</div>
+      <div class="card-tabs"><strong>3 tabs:</strong> TSBPD Packet Delivery &bull; ARQ Retransmission &bull; Clock Drift</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+    <a class="sim-card" href="nat-simulation.html" style="border-left: 3px solid #f9ca24;">
+      <div class="badge" style="color:#f9ca24;">Layer 3 &mdash; Network</div>
+      <div class="card-title">NAT / SRT / LRS</div>
+      <div class="card-desc">How SRT sources connect to an LRS Cloud Source through NAT. See Caller/Listener roles, public internet vs cloud-internal routing, and the full VOS 360 / LRS pipeline.</div>
+      <div class="card-tabs"><strong>4 tabs:</strong> Packet Flow &bull; NAT Types &bull; SRT Through NAT &bull; VOS 360 / LRS</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+
+  </div>
+
+  <!-- Guides -->
+  <div class="section-label">Deployment Guides</div>
+  <div class="sim-cards">
+    <a class="sim-card" href="psc-guide.html" style="border-left: 3px solid #00b894;">
+      <div class="badge" style="color:#00b894;">GCP &mdash; Private Service Connect</div>
+      <div class="card-title">LRS via PSC &mdash; iptables</div>
+      <div class="card-desc">Connect SRT sources to LRS Cloud Source using Google Private Service Connect. Uses iptables DNAT + SNAT rules on the LRS VM. No application-layer change to the SRT listener required.</div>
+      <div class="card-tabs"><strong>Covers:</strong> ILB &bull; Service Attachment &bull; PSC Endpoint &bull; iptables DNAT/SNAT &bull; Firewall Rules</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+    <a class="sim-card" href="psc-loopback-guide.html" style="border-left: 3px solid #4ecdc4;">
+      <div class="badge" style="color:#4ecdc4;">GCP &mdash; Private Service Connect</div>
+      <div class="card-title">LRS via PSC &mdash; Loopback</div>
+      <div class="card-desc">Alternative PSC approach using the loopback interface instead of iptables. The ILB IP is added to the VM's loopback interface and the SRT listener binds directly to that IP — no iptables rules needed.</div>
+      <div class="card-tabs"><strong>Covers:</strong> ILB &bull; Service Attachment &bull; PSC Endpoint &bull; Loopback Bind &bull; Firewall Rules</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+  </div>
+
+  <!-- Operations & Troubleshooting -->
+  <div class="section-label">Operations &amp; Troubleshooting</div>
+  <div class="sim-cards">
+    <a class="sim-card" href="azure-log-analytics-kql.html" style="border-left: 3px solid #6c8cff;">
+      <div class="badge" style="color:#6c8cff;">Azure &mdash; Log Analytics &amp; KQL</div>
+      <div class="card-title">KQL Deep Dive</div>
+      <div class="card-desc">Learn Azure Log Analytics and the Kusto Query Language from scratch &mdash; the pipe model, filtering, aggregation, time series, and joins. Every concept taught generically, then grounded in a real LRS <code style="color:#4ecdc4;">DatapathStats_CL</code> example.</div>
+      <div class="card-tabs"><strong>Covers:</strong> Workspace orientation &bull; where/project/extend &bull; summarize &bull; bin/render &bull; let/join &bull; Cheat sheet</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
+    <a class="sim-card" href="lrs-troubleshooting-guide.html" style="border-left: 3px solid #f9ca24;">
+      <div class="badge" style="color:#f9ca24;">Azure &mdash; Log Analytics</div>
+      <div class="card-title">Analysing LRS Stream Issues</div>
+      <div class="card-desc">Investigate packet loss, drops, and stream-health alerts on Harmonic LRS using Azure Log Analytics (<code style="color:#4ecdc4;">DatapathStats_CL</code>). A worked methodology built from a real Globo World Cup investigation.</div>
+      <div class="card-tabs"><strong>Covers:</strong> Loss vs Drop &bull; Field reference &bull; 10 KQL queries &bull; Eliminating variables &bull; Reusable snippets</div>
+      <div class="card-arrow">&#10132;</div>
+    </a>
   </div>
 
   <!-- Pipeline Diagram -->
@@ -276,15 +356,6 @@
         <strong style="color:#c8d6e5;">Inside the Harmonic cloud</strong> (Cloud Source &rarr; VOS 360, or Cloud Source &rarr; Cloud Edge), there is no NAT between the components &mdash; it's all within VPC or cross-region peering. Caller/Listener assignment there is an operational choice, not a NAT constraint.
       </div>
     </div>
-  </div>
-
-  <!-- Packet Encapsulation -->
-  <div class="section-label">What Travels Inside Each SRT Hop</div>
-  <div class="encap-box">
-    <div class="encap-pre"><span class="teal">Compressed Video Frame</span> <span class="muted">(H.264/H.265 NAL units / MPEG-TS)</span>
-  <span class="white">&#9492;&#9472;</span> <span class="yellow">L4:</span> SRT Datagram <span class="muted">(UDP + SRT header, ~1316 bytes payload = 7 x 188 TS pkts)</span>
-      <span class="white">&#9492;&#9472;</span> <span class="blue">L3:</span> IP Packet <span class="muted">(src/dst IP &mdash; NAT rewrites source address here)</span>
-          <span class="white">&#9492;&#9472;</span> <span class="muted">L2:</span> Ethernet Frame <span class="muted">(MAC addresses, changes at every router hop)</span></div>
   </div>
 
   <!-- Life of a Frame -->
@@ -549,77 +620,6 @@
     </div>
   </div>
 
-  <!-- Learning Path -->
-  <div class="section-label" style="margin-top:32px;">Recommended Learning Path</div>
-  <div class="path-bar">
-    <div class="step-card">
-      <div class="step-num">1</div>
-      <div class="step-title">NAT</div>
-      <div class="step-layer">Layer 3 &mdash; Network</div>
-      <div class="step-q">"How does the SRT source reach LRS through NAT?"</div>
-    </div>
-    <div class="step-arrow">&#10132;</div>
-    <div class="step-card">
-      <div class="step-num">2</div>
-      <div class="step-title">TCP</div>
-      <div class="step-layer">Layer 4 &mdash; Transport</div>
-      <div class="step-q">"Why not just use TCP for video transport?"</div>
-    </div>
-    <div class="step-arrow">&#10132;</div>
-    <div class="step-card">
-      <div class="step-num">3</div>
-      <div class="step-title">SRT</div>
-      <div class="step-layer">Layer 4 &mdash; over UDP</div>
-      <div class="step-q">"How SRT delivers broadcast-quality video"</div>
-    </div>
-  </div>
-
-  <!-- Simulation Cards -->
-  <div class="section-label">Interactive Simulations</div>
-  <div class="sim-cards">
-
-    <a class="sim-card" href="nat-simulation.html" style="border-left: 3px solid #f9ca24;">
-      <div class="badge" style="color:#f9ca24;">Layer 3 &mdash; Network</div>
-      <div class="card-title">NAT / SRT / LRS</div>
-      <div class="card-desc">How SRT sources connect to an LRS Cloud Source through NAT. See Caller/Listener roles, public internet vs cloud-internal routing, and the full VOS 360 / LRS pipeline.</div>
-      <div class="card-tabs"><strong>4 tabs:</strong> Packet Flow &bull; NAT Types &bull; SRT Through NAT &bull; VOS 360 / LRS</div>
-      <div class="card-arrow">&#10132;</div>
-    </a>
-
-    <a class="sim-card" href="tcp-simulation.html" style="border-left: 3px solid #6c8cff;">
-      <div class="badge" style="color:#6c8cff;">Layer 4 &mdash; Transport</div>
-      <div class="card-title">TCP Fundamentals</div>
-      <div class="card-desc">Why TCP's reliability model breaks live video &mdash; head-of-line blocking, retransmission delays, congestion backoff. Then see TCP vs UDP side-by-side.</div>
-      <div class="card-tabs"><strong>5 tabs:</strong> 3-Way Handshake &bull; Transmission &amp; ACK &bull; Retransmission &bull; SACK &amp; Limitations &bull; TCP vs UDP</div>
-      <div class="card-arrow">&#10132;</div>
-    </a>
-
-    <a class="sim-card" href="srt-simulation.html" style="border-left: 3px solid #00b894;">
-      <div class="badge" style="color:#00b894;">Layer 4 &mdash; Transport (over UDP)</div>
-      <div class="card-title">SRT Protocol</div>
-      <div class="card-desc">How SRT delivers broadcast-quality video: timestamp-based delivery (TSBPD), NAK-based retransmission (ARQ), and clock drift correction.</div>
-      <div class="card-tabs"><strong>3 tabs:</strong> TSBPD Packet Delivery &bull; ARQ Retransmission &bull; Clock Drift</div>
-      <div class="card-arrow">&#10132;</div>
-    </a>
-
-  </div>
-
-  <!-- Guides -->
-  <div class="section-label">Deployment Guides</div>
-  <div class="sim-cards">
-    <a class="sim-card" href="psc-guide.html" style="border-left: 3px solid #00b894;">
-      <div class="badge" style="color:#00b894;">GCP &mdash; Private Service Connect</div>
-      <div class="card-title">LRS via PSC</div>
-      <div class="card-desc">Connect SRT sources to LRS Cloud Source using Google Private Service Connect instead of VPC peering. Step-by-step guide with Network Attachment setup, PSC interface creation, and SRT configuration.</div>
-      <div class="card-tabs"><strong>Covers:</strong> Network Attachment &bull; PSC Interface &bull; Firewall Rules &bull; SRT IP:PORT Config</div>
-      <div class="card-arrow">&#10132;</div>
-    </a>
-  </div>
-
-  <!-- Footnote -->
-  <div class="footnote">
-    <strong>Why terminology matters:</strong> When streaming engineers say "packet loss," they typically mean loss at Layer 3 (IP packets dropped by congested routers). But SRT operates at Layer 4 &mdash; it sends UDP datagrams containing SRT-framed data, encapsulated inside IP packets. The "packets" in the SRT simulation are technically UDP datagrams inside IP packets. The distinction matters when diagnosing issues &mdash; a network engineer checking router queues sees IP packets, while <code style="font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;color:#4ecdc4;background:#1e2738;padding:1px 5px;border-radius:3px;">srt-live-transmit</code> statistics report SRT-level datagram loss.
-  </div>
 
 </div>
 

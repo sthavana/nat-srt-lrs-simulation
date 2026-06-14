@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analysing Harmonic LRS Stream Issues &mdash; Azure Log Analytics Guide</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0e17; color: #c8d6e5; overflow-x: hidden; }
+
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 20px 30px; border-bottom: 1px solid #2a3040; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 22px; color: #e8ecf1; font-weight: 600; }
+  .header h1 span { color: #4ecdc4; }
+  .header .back-link { font-size: 13px; color: #4a5568; text-decoration: none; }
+  .header .back-link:hover { color: #4ecdc4; }
+
+  .content { max-width: 1100px; margin: 0 auto; padding: 30px; }
+
+  .section-label { font-size: 12px; color: #6b7b8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 32px; }
+
+  /* collapsible */
+  .desc-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 10px 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 4px; user-select: none; }
+  .desc-toggle:hover { background: #111620; }
+  .desc-toggle .arrow { font-size: 10px; color: #4ecdc4; transition: transform 0.2s; }
+  .desc-toggle.open .arrow { transform: rotate(90deg); }
+  .desc-toggle .toggle-title { font-size: 13px; font-weight: 600; color: #4ecdc4; }
+  .desc-toggle .toggle-hint { font-size: 11px; color: #4a5568; margin-left: auto; }
+  .desc-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+  .desc-body.open { max-height: 4000px; }
+
+  .intro { font-size: 14px; color: #6b7b8d; line-height: 1.8; padding: 16px; background: #0d1117; border-radius: 8px; border-left: 3px solid #4ecdc4; margin-bottom: 24px; }
+  .intro strong { color: #c8d6e5; }
+
+  .prose { font-size: 13px; color: #6b7b8d; line-height: 1.8; }
+  .prose strong { color: #c8d6e5; }
+  .prose code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+
+  /* inline link to an interactive simulation */
+  .sim-ref { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #00b894; text-decoration: none; background: #0a1f1a; border: 1px solid #0a3d2e; border-radius: 6px; padding: 3px 10px; margin-top: 10px; }
+  .sim-ref:hover { background: #0d2620; border-color: #0a5c44; }
+  .sim-ref .sr-arrow { color: #00b894; font-size: 13px; }
+  .sim-ref .sr-tab { color: #6b7b8d; font-weight: 400; }
+
+  /* step cards */
+  .step-timeline { position: relative; padding: 0 0 0 40px; }
+  .step-timeline::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #4ecdc4, #4ecdc440); }
+  .step { position: relative; margin-bottom: 28px; }
+  .step:last-child { margin-bottom: 0; }
+  .step-dot { position: absolute; left: -33px; top: 12px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #4ecdc4; background: #0a0e17; color: #4ecdc4; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; z-index: 1; }
+  .step-card { background: #111620; border: 1px solid #1e2738; border-radius: 10px; padding: 18px 22px; }
+  .step-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .step-title { font-size: 15px; font-weight: 700; color: #e8ecf1; }
+  .step-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; color: #6c8cff; background: #121630; border: 1px solid #1e3a5f; }
+  .step-desc { font-size: 13px; color: #6b7b8d; line-height: 1.7; margin-bottom: 12px; }
+  .step-desc strong { color: #c8d6e5; }
+  .step-desc code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+
+  /* code blocks */
+  .code-block { background: #0d1117; border: 1px solid #1e2738; border-radius: 8px; padding: 14px 16px; margin: 10px 0; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; line-height: 1.7; color: #c8d6e5; overflow-x: auto; white-space: pre; }
+  .code-block .comment { color: #4a5568; }
+  .code-block .pipe { color: #4a5568; }
+  .code-block .kw { color: #6c8cff; }
+  .code-block .table { color: #f9ca24; font-weight: 600; }
+  .code-block .value { color: #4ecdc4; }
+  .code-block .placeholder { color: #f9ca24; }
+
+  /* info boxes */
+  .info-box { font-size: 13px; color: #6b7b8d; line-height: 1.6; padding: 12px 16px; border-radius: 8px; margin: 10px 0; border: 1px solid; }
+  .info-box code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .info-note { background: #121630; border-color: #1e3a5f; }
+  .info-note strong { color: #6c8cff; }
+  .info-note code { color: #6c8cff; }
+  .info-warn { background: #1f1a0a; border-color: #3d2e0a; }
+  .info-warn strong { color: #f9ca24; }
+  .info-warn code { color: #f9ca24; }
+  .info-success { background: #0a1f1a; border-color: #0a3d2e; }
+  .info-success strong { color: #00b894; }
+  .info-success code { color: #00b894; }
+  .info-result { background: #0d1117; border-color: #1e2738; }
+  .info-result strong { color: #c8d6e5; }
+  .info-result code { color: #4ecdc4; }
+  .info-label { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 6px; }
+
+  /* table */
+  .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  .ref-table th { text-align: left; padding: 8px 12px; background: #111620; color: #6b7b8d; font-weight: 700; border-bottom: 1px solid #1e2738; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ref-table td { padding: 8px 12px; border-bottom: 1px solid #1e2738; color: #c8d6e5; vertical-align: top; }
+  .ref-table tr:last-child td { border-bottom: none; }
+  .ref-table code { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; color: #4ecdc4; background: #1e2738; padding: 1px 5px; border-radius: 3px; }
+  .ref-table .col-field { color: #f9ca24; font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 12px; white-space: nowrap; }
+  .ref-table .col-type { color: #6c8cff; font-size: 12px; }
+  .ref-table td.key strong { color: #4ecdc4; }
+
+  /* checklist / flow */
+  .flow-box { background: #0d1117; border: 1px solid #1e2738; border-radius: 8px; padding: 16px 20px; margin: 10px 0; }
+  .flow-box ol { margin: 0; padding-left: 22px; }
+  .flow-box li { font-size: 13px; color: #6b7b8d; line-height: 1.9; }
+  .flow-box li strong { color: #c8d6e5; }
+
+  .footer { background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%); padding: 16px 30px; border-top: 1px solid #2a3040; text-align: center; font-size: 12px; color: #4a5568; margin-top: 40px; }
+
+  @media (max-width: 700px) {
+    .step-timeline { padding-left: 30px; }
+    .step-dot { left: -25px; width: 22px; height: 22px; font-size: 10px; }
+    .step-timeline::before { left: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="index.html" class="back-link">&larr; Back</a>
+  <h1><span>Analysing Harmonic LRS Stream Issues</span> &mdash; Azure Log Analytics Guide</h1>
+</div>
+
+<div class="content">
+
+  <!-- Overview -->
+  <div class="intro">
+    A practical reference for investigating <strong>packet loss, drops, and stream-health alerts</strong> on Harmonic LRS using <strong>Azure Log Analytics</strong> (the <code>DatapathStats_CL</code> table).
+    <br><br>
+    Written as a worked methodology, using a real investigation &mdash; <strong>Globo, World Cup opening match, 11 June 2026</strong> &mdash; as the running example. The investigation changed conclusion three times; each shift was driven by a query result, not a hunch. That is the process working correctly.
+    <br><br>
+    <strong>Workspace:</strong> <code>HarmonicLRSLogAnalytics</code> &nbsp;&bull;&nbsp; <strong>Table:</strong> <code>DatapathStats_CL</code> &nbsp;&bull;&nbsp; <strong>Query language:</strong> KQL (Kusto)
+    <br>
+    <a class="sim-ref" href="azure-log-analytics-kql.html" target="_blank" style="color:#6c8cff;background:#121630;border-color:#1e3a5f;">&#9654; New to KQL? Start with the Azure Log Analytics &amp; KQL deep dive <span class="sr-tab">&mdash; the pipe model, filtering, aggregation &amp; time series</span></a>
+  </div>
+
+  <!-- 1. Background -->
+  <div class="section-label">1 &mdash; Background: How SRT Works</div>
+  <div class="step-card" style="border-left:3px solid #4ecdc4;">
+    <div class="prose">
+      Most LRS ingest issues come down to understanding SRT, so it's worth a short primer before touching any query. Every concept below has a matching <strong>interactive simulation</strong> &mdash; the links jump straight to the relevant tab.
+      <br>
+      <a class="sim-ref" href="srt-simulation.html" target="_blank">&#9654; Open the SRT Protocol simulation <span class="sr-tab">&mdash; TSBPD, ARQ &amp; Clock Drift</span></a>
+      <br><br>
+      <strong>SRT (Secure Reliable Transport)</strong> is a UDP-based protocol designed to deliver low-latency video over unreliable networks. Plain UDP has no recovery &mdash; if a packet is lost, it's gone. SRT adds a reliability layer on top of UDP without paying the full latency cost of TCP.
+      <br><br>
+      <strong>Latency buffer.</strong> SRT holds packets in a buffer for a configured number of milliseconds (commonly 100&nbsp;ms or more) before handing them to the decoder. This window is what gives lost packets time to be re-requested and re-delivered. Bigger buffer = more recovery headroom, at the cost of higher end-to-end latency.
+      <br>
+      <a class="sim-ref" href="srt-simulation.html#tsbpd" target="_blank">&#9654; See it live <span class="sr-tab">&mdash; SRT sim &rsaquo; TSBPD Packet Delivery</span></a>
+      <br><br>
+      <strong>Loss detection and retransmission.</strong> The receiver tracks sequence numbers. When it spots a gap, it sends a <strong>NAK</strong> (negative acknowledgement) back to the sender asking for that packet again. The sender keeps recently-sent packets in its own buffer so it can honour these requests. This re-request/re-send cycle is the core of SRT's reliability.
+      <br>
+      <a class="sim-ref" href="srt-simulation.html#arq" target="_blank">&#9654; See it live <span class="sr-tab">&mdash; SRT sim &rsaquo; ARQ Retransmission</span></a>
+    </div>
+
+    <div class="info-box info-note" style="margin-top:14px;">
+      <strong>The recovery race &mdash; RTT vs latency buffer.</strong> A retransmitted packet is only useful if it arrives <em>before</em> its slot in the latency buffer is played out. This is the single most important relationship in SRT troubleshooting:
+      <div class="code-block" style="margin-top:8px;">If RTT &lt;&lt; latency buffer  <span class="kw">&rarr;</span>  plenty of time to recover  <span class="kw">&rarr;</span>  <span class="value">loss recovered, no impact</span>
+If RTT &asymp; latency buffer   <span class="kw">&rarr;</span>  recovery is marginal       <span class="kw">&rarr;</span>  <span class="placeholder">some packets arrive too late</span>
+If RTT &gt;  latency buffer   <span class="kw">&rarr;</span>  recovery impossible        <span class="kw">&rarr;</span>  <span style="color:#ff6b6b;">packets dropped, visible glitches</span></div>
+      <a class="sim-ref" href="srt-simulation.html#arq" target="_blank" style="color:#6c8cff;background:#121630;border-color:#1e3a5f;">&#9654; Try the RTT vs latency slider <span class="sr-tab">&mdash; SRT sim &rsaquo; ARQ Retransmission (watch the Latency / RTT Ratio)</span></a>
+    </div>
+
+    <div class="info-box info-warn">
+      <strong>Loss vs. drop &mdash; the critical distinction.</strong> These two words mean very different things and the whole investigation hinges on telling them apart:
+      <ul style="margin:8px 0 0 18px;line-height:1.8;">
+        <li><strong style="color:#c8d6e5;">Loss</strong> = a packet went missing in transit and triggered a retransmit request. Loss alone is normal and usually invisible &mdash; SRT recovers it.</li>
+        <li><strong style="color:#c8d6e5;">Drop</strong> = SRT <em>gave up</em> on a packet (couldn't recover it in time, or the buffer moved on). A drop is real, unrecovered loss that <em>can</em> cause a visible artifact.</li>
+      </ul>
+      <div style="margin-top:8px;">A stream can show large <strong style="color:#c8d6e5;">loss</strong> with zero <strong style="color:#c8d6e5;">drops</strong> and be perfectly healthy. The alert that started our investigation said "packet drop," but the first job was to check whether those were true drops or just recovered loss.</div>
+      <a class="sim-ref" href="srt-simulation.html#tsbpd" target="_blank" style="color:#f9ca24;background:#1f1a0a;border-color:#3d2e0a;">&#9654; Watch loss become drops <span class="sr-tab">&mdash; SRT sim &rsaquo; TSBPD (compare "Recovered" vs "Dropped Too Late" vs "Effective Loss")</span></a>
+    </div>
+
+    <div class="info-box info-success">
+      <strong>Primary / backup legs.</strong> LRS streams are often configured with redundant SRT paths &mdash; a <code>primary</code> and a <code>backup</code> leg carrying the same content over different paths. If one leg degrades, the other carries the stream. A single degraded leg is <strong style="color:#c8d6e5;">not</strong> a stream outage if its partner stayed healthy.
+    </div>
+  </div>
+
+  <!-- 2. Data Source -->
+  <div class="section-label">2 &mdash; The Data Source: DatapathStats_CL</div>
+  <div class="prose" style="margin-bottom:12px;">
+    All analysis below queries the <code>DatapathStats_CL</code> table in the <code>HarmonicLRSLogAnalytics</code> workspace. Each row is a periodic stats sample from <strong>one socket (one leg) of one stream</strong>.
+  </div>
+
+  <div class="desc-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Identity &amp; metadata fields</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <table class="ref-table">
+      <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+      <tr><td class="col-field">TimeGenerated</td><td class="col-type">datetime</td><td>When the sample was ingested into Log Analytics. Primary time axis for queries.</td></tr>
+      <tr><td class="col-field">TimeCreated_t</td><td class="col-type">datetime</td><td>When the stat was created at source (close to <code>TimeGenerated</code>, slight lag).</td></tr>
+      <tr><td class="col-field">account_prefix_s</td><td class="col-type">string</td><td>Customer/account identifier (e.g. <code>globocomuni</code>). First filter in almost every query.</td></tr>
+      <tr><td class="col-field">name_s</td><td class="col-type">string</td><td>Human-readable stream name (e.g. <code>LL08 - PSC</code>). The label you group and chart by.</td></tr>
+      <tr><td class="col-field">id_s</td><td class="col-type">string</td><td>Stream/endpoint ID (e.g. <code>ingress-69fa6446...</code>). Unique per ingress endpoint.</td></tr>
+      <tr><td class="col-field">streamid_s</td><td class="col-type">string</td><td>SRT stream ID passed at connection time.</td></tr>
+      <tr><td class="col-field">region_s</td><td class="col-type">string</td><td>Cloud region/zone the endpoint runs in (e.g. <code>southamerica-east1-b</code>). Key for spotting zone-localised events.</td></tr>
+      <tr><td class="col-field">platform_s</td><td class="col-type">string</td><td>Underlying platform (e.g. <code>gcp</code>).</td></tr>
+      <tr><td class="col-field">protocol_s</td><td class="col-type">string</td><td>Transport protocol (e.g. <code>srt</code>).</td></tr>
+      <tr><td class="col-field">socket_d</td><td class="col-type">real</td><td>Socket identifier &mdash; distinguishes the individual legs (primary vs backup) within one stream.</td></tr>
+      <tr><td class="col-field">upstream_pipeid_s</td><td class="col-type">string</td><td>Upstream pipe identifier. (Often empty &mdash; not always populated.)</td></tr>
+      <tr><td class="col-field">upstream_role_s</td><td class="col-type">string</td><td>Leg role: <code>primary</code>, <code>backup</code>, or blank. Critical for redundancy analysis.</td></tr>
+      <tr><td class="col-field">is_active_b</td><td class="col-type">bool</td><td>Whether the endpoint is currently active.</td></tr>
+      <tr><td class="col-field">is_grooming_endpoint_b</td><td class="col-type">bool</td><td>Whether this is a grooming endpoint.</td></tr>
+      <tr><td class="col-field">Computer, MG, TenantId, Type, _ResourceId, RawData &hellip;</td><td class="col-type">string</td><td>Azure/agent plumbing fields. Rarely relevant to stream analysis.</td></tr>
+    </table>
+  </div>
+
+  <div class="info-box info-warn" style="margin-top:12px;">
+    <strong>Important &mdash; what "send" and "receive" mean here.</strong> The <code>snd_*</code> and <code>recv_*</code> prefixes are <strong>relative to the endpoint reporting the stat</strong>, not fixed roles for the encoder and the LRS VM. The same box can be a receiver on one socket and a sender on another (SRT is bidirectional, and LRS may forward a stream onward). The endpoint's actual role is given by <code>id_s</code> (e.g. <code>ingress-...</code>) and <code>upstream_role_s</code>, not the send/receive prefix. On an <strong>ingress</strong> endpoint, <code>recv_*</code> is the encoder&rarr;LRS feed &mdash; the primary signal for ingest health &mdash; while <code>snd_*</code> reflects that endpoint's own outbound/return traffic (control packets and/or onward forwarding).
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Send-side metrics (data this endpoint sent)</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <table class="ref-table">
+      <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+      <tr><td class="col-field">snd_pkt_d</td><td class="col-type">real</td><td>Total packets sent in the sample period.</td></tr>
+      <tr><td class="col-field">snd_byte_d</td><td class="col-type">real</td><td>Total bytes sent.</td></tr>
+      <tr><td class="col-field">snd_bitrate_d</td><td class="col-type">real</td><td>Send bitrate (Mbps) for this endpoint's outbound traffic. Flat = steady; spikes = surge.</td></tr>
+      <tr><td class="col-field">snd_pkt_loss_d</td><td class="col-type">real</td><td>Packets detected as lost on the send path (triggered retransmit requests).</td></tr>
+      <tr><td class="col-field">snd_pkt_retrans_d</td><td class="col-type">real</td><td>Packets actually retransmitted. Compare to loss: <code>retrans &asymp; loss</code> means recovery was attempted.</td></tr>
+      <tr><td class="col-field">snd_pkt_dropped_d</td><td class="col-type">real</td><td><strong style="color:#f9ca24;">Packets the sender gave up on &mdash; true unrecovered send-side loss.</strong> A key health indicator.</td></tr>
+    </table>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Receive-side metrics (on ingress, the encoder&rarr;LRS feed)</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <table class="ref-table">
+      <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+      <tr><td class="col-field">recv_pkt_d</td><td class="col-type">real</td><td>Total packets received in the sample period.</td></tr>
+      <tr><td class="col-field">recv_byte_d</td><td class="col-type">real</td><td>Total bytes received.</td></tr>
+      <tr><td class="col-field">recv_bitrate_d</td><td class="col-type">real</td><td>Receive bitrate (Mbps). A drop to ~half of normal signals a degraded leg.</td></tr>
+      <tr><td class="col-field">recv_pkt_loss_d</td><td class="col-type">real</td><td>Packets the receiver detected as missing (gaps in sequence).</td></tr>
+      <tr><td class="col-field">recv_pkt_dropped_d</td><td class="col-type">real</td><td><strong style="color:#f9ca24;">Packets the receiver never recovered in time &mdash; true unrecovered receive-side loss.</strong> The single most important impact metric.</td></tr>
+    </table>
+  </div>
+
+  <div class="desc-toggle" style="margin-top:8px;" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');this.querySelector('.toggle-hint').textContent=this.classList.contains('open')?'click to collapse':'click to expand';">
+    <span class="arrow">&#9654;</span>
+    <span class="toggle-title">Path &amp; timing metrics</span>
+    <span class="toggle-hint">click to expand</span>
+  </div>
+  <div class="desc-body">
+    <table class="ref-table">
+      <tr><th>Field</th><th>Type</th><th>Meaning</th></tr>
+      <tr><td class="col-field">ms_rtt_d</td><td class="col-type">real</td><td>Round-trip time (ms). Compare against <code>ms_latency_d</code> to judge recovery headroom.</td></tr>
+      <tr><td class="col-field">ms_latency_d</td><td class="col-type">real</td><td>Configured SRT latency buffer (ms). The recovery window.</td></tr>
+      <tr><td class="col-field">link_bw_d</td><td class="col-type">real</td><td>Estimated link bandwidth. <strong style="color:#f9ca24;">Often not populated</strong> &mdash; don't rely on it; use <code>recv_bitrate_d</code> instead.</td></tr>
+    </table>
+  </div>
+
+  <div class="info-box info-success" style="margin-top:12px;">
+    <strong>The four fields that actually answer "is there a problem?"</strong>
+    <ol style="margin:8px 0 0 18px;line-height:1.9;">
+      <li><code style="color:#00b894;">recv_pkt_dropped_d</code> &mdash; unrecovered loss at the receiving endpoint. On ingress this is the encoder&rarr;LRS feed, so non-zero here is the clearest sign "the LRS didn't get the full feed in time."</li>
+      <li><code style="color:#00b894;">snd_pkt_dropped_d</code> &mdash; unrecovered loss on this endpoint's outbound side.</li>
+      <li><code style="color:#00b894;">ms_rtt_d</code> vs <code style="color:#00b894;">ms_latency_d</code> &mdash; whether recovery was even possible.</li>
+      <li><code style="color:#00b894;">upstream_role_s</code> &mdash; whether a healthy redundant leg was carrying the stream.</li>
+    </ol>
+    <div style="margin-top:8px;">Loss counters (<code style="color:#00b894;">*_loss_d</code>) tell you something happened; <strong style="color:#c8d6e5;">drop</strong> counters tell you whether it mattered.</div>
+  </div>
+
+  <!-- 3. Methodology -->
+  <div class="section-label">3 &mdash; The Investigation Methodology</div>
+  <div class="info-box info-note">
+    <strong>Guiding principle:</strong> let the data eliminate variables, and never state a conclusion the data hasn't earned.
+  </div>
+  <div class="flow-box">
+    <ol>
+      <li><strong>Establish what "normal" looks like</strong> (baseline)</li>
+      <li><strong>Confirm the alert is real</strong> (loss vs. drop, and as a %)</li>
+      <li><strong>Find WHEN it happened</strong> (timeline)</li>
+      <li><strong>Find WHICH streams</strong> were affected</li>
+      <li><strong>Find the SHARED component</strong> among affected streams</li>
+      <li><strong>Eliminate components</strong> the data rules out</li>
+      <li><strong>State only what the data proves;</strong> flag the rest as open</li>
+    </ol>
+  </div>
+
+  <!-- 4. The Queries -->
+  <div class="section-label">4 &mdash; The Queries: What We Ran and Why</div>
+  <div class="prose" style="margin-bottom:16px;">
+    Each query is shown with the reasoning that prompted it and what its result told us &mdash; the actual sequence from the Globo investigation.
+  </div>
+
+  <div class="step-timeline">
+
+    <!-- Query 1 -->
+    <div class="step">
+      <div class="step-dot">1</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Loss over time, per stream</span>
+          <span class="step-tag">Baseline</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> The alert was "packet drops during the match." First question &mdash; did all streams drop together (shared cause) or independently (per-stream cause)?
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    SendLoss = <span class="kw">sum</span>(snd_pkt_loss_d),
+    RecvLoss = <span class="kw">sum</span>(recv_pkt_loss_d)
+    <span class="kw">by</span> <span class="kw">bin</span>(TimeGenerated, 1m), name_s
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> Loss looked scattered and small across the evening &mdash; no obvious synchronised spike. <strong>(This later proved misleading</strong> because raw counts hide the percentage and we were looking at the wrong window &mdash; a lesson in itself.)</div>
+      </div>
+    </div>
+
+    <!-- Query 2 -->
+    <div class="step">
+      <div class="step-dot">2</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Bitrate over time</span>
+          <span class="step-tag">Rule out surge</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> To test the "match traffic spike saturated a shared pipe" hypothesis. If bitrate was flat, there was no surge to blame.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span> AvgSendBitrate = <span class="kw">avg</span>(snd_bitrate_d) <span class="kw">by</span> <span class="kw">bin</span>(TimeGenerated, 1m), name_s
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> Rock-steady ~33&nbsp;Mbps throughout. <strong>This killed the bitrate-spike / pipe-saturation theory</strong> &mdash; there was no surge.</div>
+      </div>
+    </div>
+
+    <!-- Query 3 -->
+    <div class="step">
+      <div class="step-dot">3</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Latency over time</span>
+          <span class="step-tag">Rule out congestion</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> Congestion shows up as latency climbing before loss. Flat latency = no building congestion.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span> AvgLatency = <span class="kw">avg</span>(ms_latency_d), MaxLatency = <span class="kw">max</span>(ms_latency_d) <span class="kw">by</span> <span class="kw">bin</span>(TimeGenerated, 1m)
+<span class="pipe">|</span> <span class="kw">render</span> timechart</div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> Latency flat (buffer at 100&nbsp;ms, RTT tiny). No congestion signature.</div>
+      </div>
+    </div>
+
+    <!-- Query 4 -->
+    <div class="step">
+      <div class="step-dot">4</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Loss as a percentage, per stream</span>
+          <span class="step-tag">Normalise</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> Raw loss counts are meaningless without volume. 18 lost out of 50 million is nothing. This converts counts to the only metric that reflects quality.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    TotalSent = <span class="kw">sum</span>(snd_pkt_d),
+    TotalSendLoss = <span class="kw">sum</span>(snd_pkt_loss_d)
+    <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span> SendLossPct = <span class="kw">round</span>(100.0 * TotalSendLoss / TotalSent, 4)
+<span class="pipe">|</span> <span class="kw">sort by</span> SendLossPct <span class="kw">desc</span></div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> Worst send-loss was <strong>0.0054%</strong>. This <em>looked</em> like an all-clear &mdash; but it only measured send-side <strong>loss</strong>, not receive-side <strong>drops</strong>, which is what tripped us up next.</div>
+      </div>
+    </div>
+
+    <!-- Query 5 -->
+    <div class="step">
+      <div class="step-dot">5</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Recovery proof (loss vs. retransmit vs. drop)</span>
+          <span class="step-tag" style="color:#f9ca24;background:#1f1a0a;border-color:#3d2e0a;">Turning point</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> To confirm whether loss was actually recovered. This requires the <strong>drop</strong> counters, not just loss.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    TotalLoss = <span class="kw">sum</span>(snd_pkt_loss_d),
+    TotalRetrans = <span class="kw">sum</span>(snd_pkt_retrans_d),
+    TotalSendDropped = <span class="kw">sum</span>(snd_pkt_dropped_d),
+    TotalRecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d)
+    <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">sort by</span> TotalLoss <span class="kw">desc</span></div>
+        <div class="info-box info-warn"><span class="info-label" style="color:#f9ca24;">Result</span> This <strong>overturned the all-clear.</strong> LL06 showed <strong>23,267</strong> receive-dropped and LL07 showed <strong>14,056</strong> &mdash; genuine unrecovered loss, despite near-zero loss percentages on the send side. <strong>Lesson: always check <code>recv_pkt_dropped_d</code>, not just loss.</strong></div>
+      </div>
+    </div>
+
+    <!-- Query 6 -->
+    <div class="step">
+      <div class="step-dot">6</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Finding when the drops happened</span>
+          <span class="step-tag">Timeline</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> To locate the drops in time and see if they clustered. Filter to rows where a drop actually occurred.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">has</span> <span class="value">"LL06"</span> <span class="kw">or</span> name_s <span class="kw">has</span> <span class="value">"LL07"</span> <span class="kw">or</span> name_s <span class="kw">has</span> <span class="value">"LL08"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:00:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T23:00:00Z</span>))
+<span class="pipe">|</span> <span class="kw">where</span> snd_pkt_dropped_d &gt; 0 <span class="kw">or</span> recv_pkt_dropped_d &gt; 0
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, name_s, snd_pkt_loss_d, snd_pkt_dropped_d,
+          recv_pkt_loss_d, recv_pkt_dropped_d, ms_rtt_d
+<span class="pipe">|</span> <span class="kw">sort by</span> TimeGenerated <span class="kw">asc</span></div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> All drops were concentrated in a <strong>~3-minute window, 18:25&ndash;18:28 UTC</strong> &mdash; about <strong>35 minutes before kickoff</strong>. This destroyed the "match-load" theory entirely; the event was pre-match.</div>
+      </div>
+    </div>
+
+    <!-- Query 7 -->
+    <div class="step">
+      <div class="step-dot">7</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Magnitude and scope of the window</span>
+          <span class="step-tag">Quantify</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> Quantify the drop as a percentage within the tight window, and confirm it was only these three streams.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">has</span> <span class="value">"LL06"</span> <span class="kw">or</span> name_s <span class="kw">has</span> <span class="value">"LL07"</span> <span class="kw">or</span> name_s <span class="kw">has</span> <span class="value">"LL08"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    RecvPkts = <span class="kw">sum</span>(recv_pkt_d),
+    RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d),
+    SndDropped = <span class="kw">sum</span>(snd_pkt_dropped_d)
+    <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span> RecvDropPct = <span class="kw">round</span>(100.0 * RecvDropped / RecvPkts, 4)</div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> LL06 = <strong>1.07%</strong> unrecovered, LL07 = <strong>0.64%</strong> unrecovered. These are <em>real</em> numbers that can cause visible artifacts &mdash; no longer dismissible as micro-loss.</div>
+      </div>
+    </div>
+
+    <!-- Query 8 -->
+    <div class="step">
+      <div class="step-dot">8</div>
+      <div class="step-card" style="border-left:3px solid #f9ca24;">
+        <div class="step-header">
+          <span class="step-title">Per-second shape and the two-leg discovery</span>
+          <span class="step-tag" style="color:#f9ca24;background:#1f1a0a;border-color:#3d2e0a;">Key discovery</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> Was it one big burst or sustained? And <code>recv_bitrate_d</code> per row revealed something unexpected.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">has</span> <span class="value">"LL06"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>))
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, recv_pkt_d, recv_pkt_loss_d, recv_pkt_dropped_d,
+          recv_bitrate_d, ms_rtt_d, link_bw_d
+<span class="pipe">|</span> <span class="kw">sort by</span> TimeGenerated <span class="kw">asc</span></div>
+        <div class="info-box info-warn"><span class="info-label" style="color:#f9ca24;">Result</span> <strong>Two rows per timestamp</strong> &mdash; one healthy (33&nbsp;Mbps, 0 loss) and one degraded (17&nbsp;Mbps, heavy loss). This revealed the stream had <strong>two legs</strong>, and only one degraded. (<code>link_bw_d</code> was empty &mdash; abandoned that column.)</div>
+      </div>
+    </div>
+
+    <!-- Query 9 -->
+    <div class="step">
+      <div class="step-dot">9</div>
+      <div class="step-card" style="border-left:3px solid #4ecdc4;">
+        <div class="step-header">
+          <span class="step-title">Identifying the shared component</span>
+          <span class="step-tag">Correlate</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> To find what LL06/LL07/LL08 had in common that the unaffected streams didn't.
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">in</span> (<span class="value">"LL06 - PSC"</span>, <span class="value">"LL07 - PSC"</span>, <span class="value">"LL08 - PSC"</span>)
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>))
+<span class="pipe">|</span> <span class="kw">distinct</span> name_s, id_s, upstream_pipeid_s, upstream_role_s, region_s, socket_d, platform_s
+<span class="pipe">|</span> <span class="kw">sort by</span> name_s <span class="kw">asc</span></div>
+        <div class="info-box info-result"><span class="info-label" style="color:#6b7b8d;">Result</span> Separate ingress IDs (independent streams), but all in zone <code>southamerica-east1-b</code>, and each had <code>primary</code> + <code>backup</code> roles &mdash; confirming the two-leg redundancy structure.</div>
+      </div>
+    </div>
+
+    <!-- Query 10 -->
+    <div class="step">
+      <div class="step-dot">10</div>
+      <div class="step-card" style="border-left:3px solid #00b894;">
+        <div class="step-header">
+          <span class="step-title">Redundancy verification</span>
+          <span class="step-tag" style="color:#00b894;background:#0a1f1a;border-color:#0a3d2e;">Decisive query</span>
+        </div>
+        <div class="step-desc">
+          <strong>Why:</strong> The final question &mdash; for each stream, was a healthy leg always available, or did primary AND backup fail together?
+        </div>
+        <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="value">"globocomuni"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s <span class="kw">in</span> (<span class="value">"LL06 - PSC"</span>, <span class="value">"LL07 - PSC"</span>, <span class="value">"LL08 - PSC"</span>)
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="value">2026-06-11T18:24:00Z</span>) .. <span class="kw">datetime</span>(<span class="value">2026-06-11T18:30:00Z</span>))
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, name_s, upstream_role_s, socket_d,
+          recv_pkt_loss_d, recv_pkt_dropped_d, recv_bitrate_d
+<span class="pipe">|</span> <span class="kw">sort by</span> name_s <span class="kw">asc</span>, TimeGenerated <span class="kw">asc</span></div>
+        <div class="info-box info-success"><span class="info-label" style="color:#00b894;">Result</span>
+          <ul style="margin:6px 0 0 18px;line-height:1.8;">
+            <li><strong style="color:#c8d6e5;">LL06</strong> &mdash; only the <em>backup</em> leg degraded; primary clean throughout &rarr; protected.</li>
+            <li><strong style="color:#c8d6e5;">LL07</strong> &mdash; only the <em>primary</em> leg degraded; backup clean throughout &rarr; protected.</li>
+            <li><strong style="color:#c8d6e5;">LL08</strong> &mdash; both legs took minor loss but <code>recv_pkt_dropped_d = 0</code> &rarr; fully recovered.</li>
+          </ul>
+          <div style="margin-top:8px;">In every case a healthy path carried the stream. <strong style="color:#c8d6e5;">Redundancy worked as designed; no broadcast impact.</strong></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 5. Narrowing Down -->
+  <div class="section-label">5 &mdash; How to Narrow Down and Eliminate Variables</div>
+  <div class="prose" style="margin-bottom:12px;">
+    The investigation worked by progressively ruling components out. This is the reusable logic:
+  </div>
+  <table class="ref-table">
+    <tr><th>Question</th><th>How to answer it</th></tr>
+    <tr><td class="key"><strong>Is the loss real or recovered?</strong></td><td>Check <code>recv_pkt_dropped_d</code> and <code>snd_pkt_dropped_d</code>. If both are ~zero, the loss was recovered and there is no impact &mdash; regardless of how big the loss counters look. <em>Only drops indicate possible viewer impact.</em></td></tr>
+    <tr><td class="key"><strong>Is it capacity / congestion?</strong></td><td>Look at <code>snd_bitrate_d</code> / <code>recv_bitrate_d</code> (flat = no surge) and the <code>ms_latency_d</code> trend (flat = no building congestion). Steady bitrate + non-climbing latency rules out pipe saturation.</td></tr>
+    <tr><td class="key"><strong>Could recovery even succeed?</strong></td><td>Compare <code>ms_rtt_d</code> to <code>ms_latency_d</code>. If RTT is a small fraction of the buffer, recovery had ample headroom and late-arrival drops are unlikely to be the cause.</td></tr>
+    <tr><td class="key"><strong>Together or independently?</strong></td><td>Group drops by <code>bin(TimeGenerated, 1m)</code> and <code>name_s</code>. Clustering in time points to a common trigger; scattered points to per-stream causes.</td></tr>
+    <tr><td class="key"><strong>What do affected streams share?</strong></td><td>Use <code>distinct</code> on <code>region_s</code>, <code>id_s</code>, <code>upstream_pipeid_s</code>, <code>socket_d</code>. A shared region/pipe/endpoint that the <em>unaffected</em> streams don't share is your candidate root cause.</td></tr>
+    <tr><td class="key"><strong>Was redundancy protective?</strong></td><td>Split by <code>upstream_role_s</code>. If for each stream at least one leg (primary or backup) stayed clean at all times, the stream was protected.</td></tr>
+  </table>
+  <div class="info-box info-warn">
+    <strong>Eliminate, don't assume.</strong> The single biggest discipline: a correlation (e.g. "all in one zone") is not a cause. We could <em>not</em> blame the GCP zone, because the healthy legs in that same zone had zero loss &mdash; a zone-wide fault would have hit them too.
+  </div>
+
+  <!-- 6. Conclusion -->
+  <div class="section-label">6 &mdash; Reaching a Defensible Conclusion</div>
+  <div class="prose" style="margin-bottom:12px;">
+    State what the data proves. Flag what it doesn't. The Globo investigation landed at:
+  </div>
+  <div class="info-box info-success">
+    <strong>Proven:</strong>
+    <ul style="margin:6px 0 0 18px;line-height:1.8;">
+      <li>A ~3-minute degradation at <strong>18:25&ndash;18:28 UTC</strong> (15:25&ndash;15:28 S&atilde;o Paulo), ~35 min before kickoff.</li>
+      <li>Affected one leg each of LL06, LL07, LL08 &mdash; all in <code>southamerica-east1-b</code>.</li>
+      <li>LL06 ~1.07% and LL07 ~0.64% unrecovered loss on the <em>degraded</em> leg only.</li>
+      <li>In every case the redundant leg stayed healthy &rarr; no broadcast impact.</li>
+    </ul>
+  </div>
+  <div class="info-box info-warn">
+    <strong>Not proven (open / would need more data):</strong>
+    <ul style="margin:6px 0 0 18px;line-height:1.8;">
+      <li>The specific faulty component. Receiver-side stats show loss happened in transit but not <em>which hop</em>. The healthy same-zone legs make a blanket "GCP zone fault" unlikely.</li>
+      <li>To attribute the cause, you'd need data from other points in the chain at that exact window: Globo encoder send logs, Direct Connect / Interconnect metrics, GCP zone status history, or PSC / ILB metrics.</li>
+    </ul>
+  </div>
+  <div class="info-box info-note">
+    <strong>The headline:</strong> the alert was real, but redundancy absorbed it &mdash; the streams were protected, and the broadcast was not affected.
+  </div>
+
+  <!-- 7. Reusable Snippets -->
+  <div class="section-label">7 &mdash; Reusable Query Snippets</div>
+  <div class="prose" style="margin-bottom:12px;">
+    A quick-reference toolkit for the next investigation. Replace the account prefix, stream names, and time window.
+  </div>
+
+  <div class="step-card" style="margin-bottom:12px;">
+    <div class="step-desc" style="margin-bottom:6px;"><strong>Health summary across all streams (run this first):</strong></div>
+    <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="placeholder">"&lt;account&gt;"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="placeholder">&lt;start&gt;</span>) .. <span class="kw">datetime</span>(<span class="placeholder">&lt;end&gt;</span>))
+<span class="pipe">|</span> <span class="kw">summarize</span>
+    Sent = <span class="kw">sum</span>(snd_pkt_d), Recv = <span class="kw">sum</span>(recv_pkt_d),
+    SendDropped = <span class="kw">sum</span>(snd_pkt_dropped_d),
+    RecvDropped = <span class="kw">sum</span>(recv_pkt_dropped_d)
+    <span class="kw">by</span> name_s
+<span class="pipe">|</span> <span class="kw">extend</span> RecvDropPct = <span class="kw">round</span>(100.0 * RecvDropped / Recv, 4),
+         SendDropPct = <span class="kw">round</span>(100.0 * SendDropped / Sent, 4)
+<span class="pipe">|</span> <span class="kw">sort by</span> RecvDropPct <span class="kw">desc</span></div>
+  </div>
+
+  <div class="step-card" style="margin-bottom:12px;">
+    <div class="step-desc" style="margin-bottom:6px;"><strong>List every column in the table (when a field name errors):</strong></div>
+    <div class="code-block"><span class="table">DatapathStats_CL</span> <span class="pipe">|</span> <span class="kw">getschema</span> <span class="pipe">|</span> <span class="kw">project</span> ColumnName, ColumnType <span class="pipe">|</span> <span class="kw">sort by</span> ColumnName <span class="kw">asc</span></div>
+  </div>
+
+  <div class="step-card" style="margin-bottom:12px;">
+    <div class="step-desc" style="margin-bottom:6px;"><strong>Find exactly when drops occurred:</strong></div>
+    <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="placeholder">"&lt;account&gt;"</span>
+<span class="pipe">|</span> <span class="kw">where</span> snd_pkt_dropped_d &gt; 0 <span class="kw">or</span> recv_pkt_dropped_d &gt; 0
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="placeholder">&lt;start&gt;</span>) .. <span class="kw">datetime</span>(<span class="placeholder">&lt;end&gt;</span>))
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, name_s, upstream_role_s, recv_pkt_dropped_d, snd_pkt_dropped_d
+<span class="pipe">|</span> <span class="kw">sort by</span> TimeGenerated <span class="kw">asc</span></div>
+  </div>
+
+  <div class="step-card">
+    <div class="step-desc" style="margin-bottom:6px;"><strong>Check redundancy (per-leg health):</strong></div>
+    <div class="code-block"><span class="table">DatapathStats_CL</span>
+<span class="pipe">|</span> <span class="kw">where</span> account_prefix_s <span class="kw">has</span> <span class="placeholder">"&lt;account&gt;"</span>
+<span class="pipe">|</span> <span class="kw">where</span> name_s == <span class="placeholder">"&lt;stream&gt;"</span>
+<span class="pipe">|</span> <span class="kw">where</span> TimeGenerated <span class="kw">between</span> (<span class="kw">datetime</span>(<span class="placeholder">&lt;start&gt;</span>) .. <span class="kw">datetime</span>(<span class="placeholder">&lt;end&gt;</span>))
+<span class="pipe">|</span> <span class="kw">project</span> TimeGenerated, upstream_role_s, socket_d, recv_pkt_loss_d, recv_pkt_dropped_d, recv_bitrate_d
+<span class="pipe">|</span> <span class="kw">sort by</span> TimeGenerated <span class="kw">asc</span></div>
+  </div>
+
+  <!-- Appendix -->
+  <div class="section-label">Appendix &mdash; Time Zone Reference</div>
+  <div class="info-box info-note">
+    LRS timestamps in Log Analytics are <strong>UTC</strong>. S&atilde;o Paulo (Globo) is <strong>UTC&minus;3</strong> year-round (no DST). When correlating with broadcast schedules, convert:
+    <div class="code-block" style="margin-top:8px;">UTC &minus; 3 hours = S&atilde;o Paulo (BRT)
+<span class="comment">e.g. 18:25 UTC = 15:25 S&atilde;o Paulo</span></div>
+    Always quote <strong>both UTC and local time</strong> when reporting to a customer, to avoid cross-reference confusion.
+  </div>
+
+</div>
+
+<div class="footer">
+  Analysing Harmonic LRS Stream Issues &mdash; Azure Log Analytics (DatapathStats_CL)
+</div>
+
+</body>
+</html>
