@@ -346,6 +346,7 @@
       <label>Actions</label>
       <div class="btn-group">
         <button class="btn btn-primary" id="types-run">Run Test</button>
+        <button class="btn btn-secondary" id="types-pause">Pause</button>
         <button class="btn btn-secondary" id="types-reset">Reset</button>
       </div>
     </div>
@@ -1126,6 +1127,12 @@ document.querySelectorAll('.tab').forEach(function(tab) {
 
   document.getElementById('types-run').addEventListener('click', function() { startTest(); });
   document.getElementById('types-reset').addEventListener('click', function() { resetTest(); });
+  var paused = false;
+  document.getElementById('types-pause').addEventListener('click', function() {
+    paused = !paused;
+    this.textContent = paused ? 'Resume' : 'Pause';
+    this.classList.toggle('btn-active', paused);
+  });
 
   function resetTest() {
     testPhase = -1;
@@ -1167,6 +1174,7 @@ document.querySelectorAll('.tab').forEach(function(tab) {
 
   var prevTime = performance.now();
   function update(now) {
+    if (paused) { prevTime = now; draw(now); updateTypesStats(); requestAnimationFrame(update); return; }
     var dt = Math.min(now - prevTime, 50);
     prevTime = now;
 
